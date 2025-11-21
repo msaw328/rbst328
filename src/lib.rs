@@ -1,10 +1,14 @@
 use std::{cmp::{Ordering, PartialOrd}, fmt::Display};
 
+// Shorthand for a referece to a Box'ed node that may or may not be there
+type NodeRef<V> = Option<Box<Node<V>>>;
+
 struct Node<V> {
-    left: Option<Box<Node<V>>>,
-    right: Option<Box<Node<V>>>,
+    left: NodeRef<V>,
+    right: NodeRef<V>,
     value: V
 }
+
 
 impl <V: PartialOrd + Copy> Node<V> {
     pub fn new(value: V) -> Self {
@@ -17,7 +21,7 @@ impl <V: PartialOrd + Copy> Node<V> {
 }
 
 pub struct BST<V: PartialOrd> {
-    head: Option<Box<Node<V>>>
+    head: NodeRef<V>
 }
 
 impl<V: PartialOrd + Copy> BST<V> {
@@ -30,7 +34,24 @@ impl<V: PartialOrd + Copy> BST<V> {
     // Returns the position for given value in the tree:
     // If result is None, it means it's a reference to empty leaf node that should be occupied by the value
     // If result is Some, it contains Box'ed Node with given value
-    fn find_position(&mut self, value: V) -> &mut Option<Box<Node<V>>> {
+    fn find_position(&self, value: V) -> &NodeRef<V> {
+        let mut current_node = &self.head;
+
+        // Way too convoluted and much too verbose due to: https://stackoverflow.com/a/73740329
+        while let Some(node) = current_node.as_ref(){
+            current_node = match node.value.partial_cmp(&value).expect("Non-comparable values not allowed") {
+                Ordering::Less => &current_node.as_ref().unwrap().right,
+                Ordering::Greater => &current_node.as_ref().unwrap().left,
+                Ordering::Equal => break
+            };
+        }
+
+        current_node
+    }
+
+    // Until some sort of code sugar or generics-over-mut happen, have to duplicate this function for mutable refs
+    // logic is identical to the immutable version
+    fn find_position_mut(&mut self, value: V) -> &mut NodeRef<V> {
         let mut current_node = &mut self.head;
 
         // Way too convoluted and much too verbose due to: https://stackoverflow.com/a/73740329
@@ -46,7 +67,7 @@ impl<V: PartialOrd + Copy> BST<V> {
     }
     
     pub fn insert(&mut self, value: V) -> () {
-        let found_node = self.find_position(value);
+        let found_node = self.find_position_mut(value);
 
         // This deals with duplicate values - inserting duplicate vlaue is no-op
         if found_node.is_some() {
@@ -57,8 +78,9 @@ impl<V: PartialOrd + Copy> BST<V> {
         *found_node = Some(Box::new(Node::new(value)));
     }
 
-    
-
+    pub fn contains(&self, value: V) -> bool {
+        self.find_position(value).is_some()
+    }
 }
 
 impl<T: Display + PartialOrd> BST<T> {
@@ -94,28 +116,5 @@ impl<T: Display + PartialOrd> BST<T> {
 
             space_count -= 3;
         }
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn basic_inserts() {
-        let mut bst = BST::<i32>::new();
-        bst.insert(10);
-        bst.insert(25);
-        bst.insert(4);
-        bst.insert(3);
-        bst.insert(15);
-        bst.insert(15);
-        bst.insert(30);
-        bst.insert(2);
-        bst.insert(16);
-
-        println!("PRINTING TREE");
-        bst.pretty_print();
     }
 }

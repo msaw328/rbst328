@@ -1,6 +1,16 @@
 [package]
-name = "rs_bst"
+name = "rbst328"
 version = "0.1.0"
 edition = "2024"
+
+[lib]
+name = "rbst328"
+path = "src/lib.rs"
+crate-type=["lib"]
+
+[[example]]
+name = "testbin"
+path = "examples/testbin.rs"
+crate-type=["bin"]
 
 [dependencies]
