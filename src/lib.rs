@@ -1,107 +1,223 @@
-use std::{cmp::{Ordering, PartialOrd}, fmt::Display};
+use std::{
+    cmp::{Ord, Ordering},
+    fmt::Display,
+};
 
 // Shorthand for a referece to a Box'ed node that may or may not be there
-type NodeRef<V> = Option<Box<Node<V>>>;
+type NodeRef<K, V> = Option<Box<Node<K, V>>>;
 
-struct Node<V> {
-    left: NodeRef<V>,
-    right: NodeRef<V>,
-    value: V
+struct Node<K, V> {
+    left: NodeRef<K, V>,
+    right: NodeRef<K, V>,
+    key: K,
+    value: V,
 }
 
-
-impl <V: PartialOrd + Copy> Node<V> {
-    pub fn new(value: V) -> Self {
+impl<K: Ord, V> Node<K, V> {
+    pub fn new(key: K, value: V) -> Self {
         Self {
             left: None,
             right: None,
-            value
+            value,
+            key,
         }
     }
 }
 
-pub struct BST<V: PartialOrd> {
-    head: NodeRef<V>
+pub struct BSTMap<K: Ord, V> {
+    head: NodeRef<K, V>,
 }
 
-impl<V: PartialOrd + Copy> BST<V> {
+impl<K: Ord, V> BSTMap<K, V> {
     pub fn new() -> Self {
-        Self {
-            head: None
-        }
+        Self { head: None }
     }
 
-    // Returns the position for given value in the tree:
-    // If result is None, it means it's a reference to empty leaf node that should be occupied by the value
-    // If result is Some, it contains Box'ed Node with given value
-    fn find_position(&self, value: V) -> &NodeRef<V> {
-        let mut current_node = &self.head;
-
-        // Way too convoluted and much too verbose due to: https://stackoverflow.com/a/73740329
-        while let Some(node) = current_node.as_ref(){
-            current_node = match node.value.partial_cmp(&value).expect("Non-comparable values not allowed") {
-                Ordering::Less => &current_node.as_ref().unwrap().right,
-                Ordering::Greater => &current_node.as_ref().unwrap().left,
-                Ordering::Equal => break
-            };
-        }
-
-        current_node
+    pub fn clear(&mut self) {
+        self.head = None
     }
 
-    // Until some sort of code sugar or generics-over-mut happen, have to duplicate this function for mutable refs
-    // logic is identical to the immutable version
-    fn find_position_mut(&mut self, value: V) -> &mut NodeRef<V> {
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         let mut current_node = &mut self.head;
 
-        // Way too convoluted and much too verbose due to: https://stackoverflow.com/a/73740329
-        while let Some(node) = current_node.as_mut(){
-            current_node = match node.value.partial_cmp(&value).expect("Non-comparable values not allowed") {
+        while current_node.is_some() {
+            // unwrap is safe inside the loop, since current_node is Some
+            current_node = match current_node.as_ref().unwrap().key.cmp(&key) {
                 Ordering::Less => &mut current_node.as_mut().unwrap().right,
                 Ordering::Greater => &mut current_node.as_mut().unwrap().left,
-                Ordering::Equal => break
-            };
+                Ordering::Equal => break,
+            }
         }
 
-        current_node
-    }
-    
-    pub fn insert(&mut self, value: V) -> () {
-        let found_node = self.find_position_mut(value);
+        let old_value = current_node.take();
+        *current_node = Some(Box::new(Node::new(key, value)));
 
-        // This deals with duplicate values - inserting duplicate vlaue is no-op
-        if found_node.is_some() {
-            return;
+        match old_value {
+            None => None,
+            Some(node) => Some(node.value),
+        }
+    }
+
+    pub fn contains(&self, key: K) -> bool {
+        let mut current_node = &self.head;
+
+        while current_node.is_some() {
+            // unwrap is safe inside the loop, since current_node is Some
+            current_node = match current_node.as_ref().unwrap().key.cmp(&key) {
+                Ordering::Less => &current_node.as_ref().unwrap().right,
+                Ordering::Greater => &current_node.as_ref().unwrap().left,
+                Ordering::Equal => return true,
+            }
         }
 
-        // Found reference to a None option which is a leaf node that should contain the value
-        *found_node = Some(Box::new(Node::new(value)));
+        false
     }
 
-    pub fn contains(&self, value: V) -> bool {
-        self.find_position(value).is_some()
+    pub fn get(&self, key: K) -> Option<&V> {
+        let mut current_node = &self.head;
+
+        while current_node.is_some() {
+            let inner = current_node.as_ref().unwrap();
+
+            // unwrap is safe inside the loop, since current_node is Some
+            current_node = match inner.key.cmp(&key) {
+                Ordering::Less => &inner.right,
+                Ordering::Greater => &inner.left,
+                Ordering::Equal => return Some(&inner.value),
+            }
+        }
+
+        None
+    }
+
+    pub fn get_mut(&mut self, key: K) -> Option<&mut V> {
+        let mut current_node = &mut self.head;
+
+        while current_node.is_some() {
+            let inner = current_node.as_mut().unwrap();
+
+            // unwrap is safe inside the loop, since current_node is Some
+            current_node = match inner.key.cmp(&key) {
+                Ordering::Less => &mut inner.right,
+                Ordering::Greater => &mut inner.left,
+                Ordering::Equal => return Some(&mut inner.value),
+            }
+        }
+
+        None
+    }
+
+    // TODO: clean this code up, if possible
+    pub fn remove(&mut self, key: K) -> Option<V> {
+        // First - find current node, if it is even in there
+        let mut current_node = &mut self.head;
+
+        while current_node.is_some() {
+            current_node = match current_node.as_mut().unwrap().key.cmp(&key) {
+                Ordering::Less => &mut current_node.as_mut().unwrap().right,
+                Ordering::Greater => &mut current_node.as_mut().unwrap().left,
+                Ordering::Equal => break,
+            }
+        }
+
+        // This means that key is not in the tree - no removals
+        if current_node.is_none() {
+            return None;
+        }
+
+        // Below cases are from the wikipedia article: https://en.wikipedia.org/wiki/Binary_search_tree#Deletion
+        // Case 1 - leaf node - just remove and call it a day
+        if current_node.as_ref().unwrap().right.is_none() && current_node.as_ref().unwrap().left.is_none() {
+            return Some(current_node.take().unwrap().value);
+        }
+
+        // Case 2 - one child - replace parent with child
+        if current_node.as_ref().unwrap().right.is_none() {
+            let mut old_node = current_node.take().unwrap();
+            *current_node = old_node.left.take();
+            return Some(old_node.value);
+        }
+
+        if current_node.as_ref().unwrap().left.is_none() {
+            let mut old_node = current_node.take().unwrap();
+            *current_node = old_node.right.take();
+            return Some(old_node.value);
+        }
+
+        // Case 3 - two children - search for in order successor
+        // Case 3a - if in order successor is immediately the right node (right node has no left subtree)
+        // then replace parent with it, while keeping the left subtree
+        // At this point both children are guaranteed to be Some so unwrap is safe
+        if current_node.as_ref().unwrap().right.as_ref().unwrap().left.is_none() {
+            let saved_left = current_node.as_mut().unwrap().left.take(); // save left subtree of successor
+            let saved_right = current_node.as_mut().unwrap().right.take();
+
+            let old_node = current_node.take().unwrap();
+
+            *current_node = saved_right; // replace current node with right subtree of successor
+            current_node.as_mut().unwrap().left = saved_left; // append saved left subtree
+
+            return Some(old_node.value);
+        }
+
+        // Case 3b - in order successor is not immediately the right node - search for it
+        // need to keep reference to successors parent in order to replace successor
+        // successor is the left child of successors parent
+        // at the beginning we are guaranteed that left node exists due to earlier if(), so unwrap is safe
+        let mut successors_parent = &mut current_node.as_mut().unwrap().right;
+        let mut successor = &mut successors_parent.as_mut().unwrap().left;
+
+        // While successor has a left subtree, move one level lower to the left
+        while successor.as_ref().unwrap().left.is_some() {
+            successors_parent = &mut successors_parent.as_mut().unwrap().left;
+            successor = &mut successors_parent.as_mut().unwrap().left;
+        }
+
+        // Store inner Boxed node of successor for easier access - also take it, since we're moving it anyways
+        let mut successor_inner = successor.take().unwrap();
+
+        // Replace successors parent's left subtree with right subtree of successor
+        successors_parent.as_mut().unwrap().left = successor_inner.right;
+
+        let saved_left = current_node.as_mut().unwrap().left.take();
+        let saved_right = current_node.as_mut().unwrap().right.take();
+        let old_node = current_node.take().unwrap();
+
+        // Replace removed node with successor
+        successor_inner.right = saved_right;
+        successor_inner.left = saved_left;
+        *current_node = Some(successor_inner);
+
+        return Some(old_node.value);
     }
 }
 
-impl<T: Display + PartialOrd> BST<T> {
+impl<K: Display + Ord, V: Display> BSTMap<K, V> {
     // TODO: Probably remove this/change to debug-only
     // TODO: clean this code up and change it into a BFS function?
-    pub fn pretty_print (&self) -> () {
+    pub fn pretty_print(&self) -> () {
         let mut current_vector = vec![&self.head];
 
         let mut space_count = 35;
 
         while current_vector.iter().any(|node| node.is_some()) {
-            print!("{}", std::iter::repeat(" ").take(space_count).collect::<String>());
+            print!(
+                "{}",
+                std::iter::repeat(" ").take(space_count).collect::<String>()
+            );
             for node in &current_vector {
                 if node.is_some() {
-                    print!("{:>3}   ", node.as_ref().unwrap().value);
+                    print!(
+                        "{:>3}:{:>3}   ",
+                        node.as_ref().unwrap().key,
+                        node.as_ref().unwrap().value
+                    );
                 } else {
                     print!("X   ");
                 }
             }
             println!("");
-        
+
             let mut next_vector = vec![];
             for node in current_vector {
                 if node.is_some() {
