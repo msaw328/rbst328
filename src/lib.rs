@@ -1,24 +1,25 @@
 // rbst328 - Implementation of Binary Search Tree in Rust
 // Copyright (C) 2025  Maciej Sawka <maciejsawka@gmail.com>
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::cmp::{Ord, Ordering};
 
-use std::{
-    cmp::{Ord, Ordering},
-    fmt::Display,
-};
+mod iter;
+use iter::BSTMapIter;
+
+mod debug;
 
 // Shorthand for a referece to a Box'ed node that may or may not be there
 type NodeRef<K, V> = Option<Box<Node<K, V>>>;
@@ -43,11 +44,23 @@ impl<K: Ord, V> Node<K, V> {
 
 pub struct BSTMap<K: Ord, V> {
     head: NodeRef<K, V>,
+    length: usize,
 }
 
 impl<K: Ord, V> BSTMap<K, V> {
     pub fn new() -> Self {
-        Self { head: None }
+        Self {
+            head: None,
+            length: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
     }
 
     pub fn clear(&mut self) {
@@ -70,7 +83,10 @@ impl<K: Ord, V> BSTMap<K, V> {
         *current_node = Some(Box::new(Node::new(key, value)));
 
         match old_value {
-            None => None,
+            None => {
+                self.length += 1; // If old vlaue is None, means length increased
+                None
+            }
             Some(node) => Some(node.value),
         }
     }
@@ -142,9 +158,13 @@ impl<K: Ord, V> BSTMap<K, V> {
             return None;
         }
 
+        self.length -= 1;
+
         // Below cases are from the wikipedia article: https://en.wikipedia.org/wiki/Binary_search_tree#Deletion
         // Case 1 - leaf node - just remove and call it a day
-        if current_node.as_ref().unwrap().right.is_none() && current_node.as_ref().unwrap().left.is_none() {
+        if current_node.as_ref().unwrap().right.is_none()
+            && current_node.as_ref().unwrap().left.is_none()
+        {
             return Some(current_node.take().unwrap().value);
         }
 
@@ -165,7 +185,15 @@ impl<K: Ord, V> BSTMap<K, V> {
         // Case 3a - if in order successor is immediately the right node (right node has no left subtree)
         // then replace parent with it, while keeping the left subtree
         // At this point both children are guaranteed to be Some so unwrap is safe
-        if current_node.as_ref().unwrap().right.as_ref().unwrap().left.is_none() {
+        if current_node
+            .as_ref()
+            .unwrap()
+            .right
+            .as_ref()
+            .unwrap()
+            .left
+            .is_none()
+        {
             let saved_left = current_node.as_mut().unwrap().left.take(); // save left subtree of successor
             let saved_right = current_node.as_mut().unwrap().right.take();
 
@@ -207,47 +235,8 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         return Some(old_node.value);
     }
-}
 
-impl<K: Display + Ord, V: Display> BSTMap<K, V> {
-    // TODO: Probably remove this/change to debug-only
-    // TODO: clean this code up and change it into a BFS function?
-    pub fn pretty_print(&self) -> () {
-        let mut current_vector = vec![&self.head];
-
-        let mut space_count = 35;
-
-        while current_vector.iter().any(|node| node.is_some()) {
-            print!(
-                "{}",
-                std::iter::repeat(" ").take(space_count).collect::<String>()
-            );
-            for node in &current_vector {
-                if node.is_some() {
-                    print!(
-                        "{:>3}:{:>3}   ",
-                        node.as_ref().unwrap().key,
-                        node.as_ref().unwrap().value
-                    );
-                } else {
-                    print!("X   ");
-                }
-            }
-            println!("");
-
-            let mut next_vector = vec![];
-            for node in current_vector {
-                if node.is_some() {
-                    next_vector.push(&(node.as_ref().unwrap().left));
-                    next_vector.push(&(node.as_ref().unwrap().right));
-                } else {
-                    next_vector.push(&None);
-                    next_vector.push(&None);
-                }
-            }
-            current_vector = next_vector;
-
-            space_count -= 3;
-        }
+    pub fn iter(&self) -> BSTMapIter<'_, K, V> {
+        BSTMapIter::new(self)
     }
 }

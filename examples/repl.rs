@@ -1,19 +1,18 @@
 // rbst328 - Implementation of Binary Search Tree in Rust
 // Copyright (C) 2025  Maciej Sawka <maciejsawka@gmail.com>
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU Affero General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 
 use rbst328::BSTMap;
 use std::io::{self, Write};
@@ -103,11 +102,49 @@ fn main() {
                 continue;
             }
 
+            if parts[0] == "keys" {
+                println!(
+                    "Ok, value = {:?}",
+                    bst.iter().map(|(k, _)| k).collect::<Vec<_>>()
+                );
+                continue;
+            }
+
+            if parts[0] == "values" {
+                println!(
+                    "Ok, value = {:?}",
+                    bst.iter().map(|(_, v)| v).collect::<Vec<_>>()
+                );
+                continue;
+            }
+
+            if parts[0] == "tuples" {
+                println!("Ok, value = {:?}", bst.iter().collect::<Vec<_>>());
+                continue;
+            }
+
+            if parts[0] == "length" {
+                println!("Ok, value = {:?}", bst.len());
+                continue;
+            }
+
+            if parts[0] == "empty" {
+                println!("Ok, value = {:?}", bst.is_empty());
+                continue;
+            }
+
             if parts[0] == "help" {
                 println!("help - display this message");
-                println!("set [key] [value] - insert value, overwriting and returning old value if present");
+                println!(
+                    "set [key] [value] - insert value, overwriting and returning old value if present"
+                );
                 println!("get [key] - get value associated with the key");
                 println!("del [key] - deletes value at given key");
+                println!("keys - returns an array of all keys, sorted by key");
+                println!("values - returns an array of all values, sorted by key");
+                println!("tuples - returns an array of all tuples, sorted by key");
+                println!("length - returns length of the tree");
+                println!("empty - returns whether tree is empty (true/false");
                 println!("clear - clear the tree");
                 println!("quit, exit - exits the program");
 

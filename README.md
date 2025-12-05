@@ -7,8 +7,15 @@ The plan is as follows:
     - :white_check_mark: Insertion
     - :white_check_mark: Removal
     - :white_check_mark: Search
-    - :white_check_mark: Secondary operations: `.clear()`, `.contains()`
-    - :x: Iterator(s)
+    - Secondary operations:
+        - :white_check_mark: `.clear()`
+        - :white_check_mark: `.contains()`
+        - :white_check_mark: `.len()`
+        - :white_check_mark: `.is_empty()`
+    - Iterators:
+        - :white_check_mark: `.iter()`
+        - :white_check_mark: `.into_iter()`
+        - :x: `.iter_mut()`
 2) Add Red-Black tree functionality to make it balanced
 3) Add serialization and deserialization from/to bytes
 4) Try sending it over a network, writing to a file or some other way of IPC/data sync
