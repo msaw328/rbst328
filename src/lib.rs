@@ -385,4 +385,158 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
     }
+
+    #[test]
+    fn remove_node_with_one_child() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const TEST_INSERTIONS: [(u32, &str); 5] = [
+            (10, "hello"),
+            (5, "hi"),
+            (15, "bye"),
+            (2, "leaf_node_child"),
+            (20, "right_child"),
+        ];
+        for (k, v) in &TEST_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        //      10
+        //     /  \
+        //    5   15
+        //   /      \
+        //  2       20
+        // test removal of parent with left child
+        let mut return_val = bst.remove(5);
+
+        assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);
+        assert!(return_val.is_some());
+        assert_eq!(return_val.unwrap(), "hi".to_string());
+
+        // child should remain accessible
+        let mut child_node = bst.get(2);
+
+        assert!(child_node.is_some());
+        assert_eq!(*child_node.unwrap(), "leaf_node_child".to_string());
+
+        // test removal of parent with right child
+        return_val = bst.remove(15);
+
+        assert_eq!(bst.len(), TEST_INSERTIONS.len() - 2);
+        assert!(return_val.is_some());
+        assert_eq!(return_val.unwrap(), "bye".to_string());
+
+        // child should remain accessible
+        assert!(bst.contains(20));
+        child_node = bst.get(20);
+
+        assert!(child_node.is_some());
+        assert_eq!(*child_node.unwrap(), "right_child".to_string());
+    }
+
+    #[test]
+    fn remove_node_with_two_children_and_right_node_successor() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const TEST_INSERTIONS: [(u32, &str); 8] = [
+            (10, "hello"),
+            (5, "hi"),
+            (15, "bye"),
+            (2, "leaf_node_child"),
+            (13, "left_child"),
+            (20, "right_child"),
+            (12, "left_child_subtree_l"),
+            (14, "left_child_subtree_r"),
+        ];
+
+        // Children to check after removing 15
+        const CHILDREN_TO_CHECK: [(u32, &str); 4] = [
+            (13, "left_child"),
+            (20, "right_child"),
+            (12, "left_child_subtree_l"),
+            (14, "left_child_subtree_r"),
+        ];
+        for (k, v) in &TEST_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        //      10
+        //     /  \
+        //    5   15
+        //   /   /  \
+        //  2   13  20
+        //     /  \
+        //    12  14
+        let return_val = bst.remove(15);
+
+        assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);
+        assert!(return_val.is_some());
+        assert_eq!(return_val.unwrap(), "bye".to_string());
+
+        // children should remain accessible
+        for (k, v) in &CHILDREN_TO_CHECK {
+            assert!(bst.contains(*k));
+            let child_node = bst.get(*k);
+
+            assert!(child_node.is_some());
+            assert_eq!(*child_node.unwrap(), v.to_string());
+        }
+    }
+
+    #[test]
+    fn remove_node_with_two_children_and_successor_in_right_subtree() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const TEST_INSERTIONS: [(u32, &str); 11] = [
+            (10, "hello"),
+            (5, "hi"),
+            (15, "bye"),
+            (2, "leaf_node_child"),
+            (13, "left_child"),
+            (20, "right_child"),
+            (12, "left_child_subtree_l"),
+            (14, "left_child_subtree_r"),
+            (19, "right_child_subtree_l"),
+            (17, "right_child_subtree_l_l"),
+            (21, "right_child_subtree_r"),
+        ];
+
+        // Children to check after removing 15
+        const CHILDREN_TO_CHECK: [(u32, &str); 7] = [
+            (13, "left_child"),
+            (20, "right_child"),
+            (12, "left_child_subtree_l"),
+            (14, "left_child_subtree_r"),
+            (19, "right_child_subtree_l"),
+            (17, "right_child_subtree_l_l"),
+            (21, "right_child_subtree_r"),
+        ];
+        for (k, v) in &TEST_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        //      10
+        //     /  \
+        //    5   15
+        //   /   /  \
+        //  2   13  20
+        //     / |  | \
+        //    12 14 19 21
+        //         /
+        //        17
+        let return_val = bst.remove(15);
+
+        assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);
+        assert!(return_val.is_some());
+        assert_eq!(return_val.unwrap(), "bye".to_string());
+
+        // children should remain accessible
+        for (k, v) in &CHILDREN_TO_CHECK {
+            assert!(bst.contains(*k));
+            let child_node = bst.get(*k);
+
+            assert!(child_node.is_some());
+            assert_eq!(*child_node.unwrap(), v.to_string());
+        }
+    }
 }
