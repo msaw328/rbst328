@@ -16,6 +16,8 @@
 
 use rbst328::BSTMap;
 
+// TODO: remove this example file once unit tests feel complete enough?
+
 fn main() {
     let mut bst = BSTMap::<i32, &str>::new();
     bst.insert(10, "test");
@@ -55,6 +57,16 @@ fn main() {
         }
     }
 
+    bst = [
+        (-35, "Hello!"),
+        (-21, "test123"),
+        (-10, "aaaa"),
+        (-19, " "),
+        (-40, "aasdasdasd"),
+        (20, "utf8żółc"),
+    ]
+    .into();
+
     println!("PRINTING TREE AFTER get_mut()");
     bst.pretty_print();
 
@@ -62,10 +74,13 @@ fn main() {
         println!("Mapping: {}: \"{}\"", key, value);
     }
 
+    bst.extend([
+        (99, "large number"),
+        (-12, "random insert in the middle"),
+        (4, "hi"),
+    ]);
+
     for (key, value) in bst {
         println!("Owned mapping: {}: \"{}\"", key, value);
     }
-
-    // this should error out:
-    //bst.insert(-99, "halo");
 }

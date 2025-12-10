@@ -15,6 +15,8 @@ The plan is as follows:
     - Iterators:
         - :white_check_mark: `.iter()`
         - :white_check_mark: `.into_iter()`
+        - :white_check_mark: `.from_iter()` (and `.collect()`)
+        - :white_check_mark: `.extend()`
         - :x: `.iter_mut()`
 2) Add Red-Black tree functionality to make it balanced
 3) Add serialization and deserialization from/to bytes

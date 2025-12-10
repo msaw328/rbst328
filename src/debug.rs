@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+// This file contains functionality used for debugging during development
+// This will most likely not be public API
+
 use std::fmt::Display;
 
 use super::BSTMap;

@@ -158,3 +158,37 @@ impl<K: Ord, V> IntoIterator for BSTMap<K, V> {
         BSTMapIntoIter::new(self)
     }
 }
+
+impl<K: Ord, V> FromIterator<(K, V)> for BSTMap<K, V> {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut bst = Self::new();
+
+        for (k, v) in iter {
+            bst.insert(k, v);
+        }
+
+        bst
+    }
+}
+
+impl<K: Ord, V, const N: usize> From<[(K, V); N]> for BSTMap<K, V> {
+    fn from(array: [(K, V); N]) -> Self {
+        let mut bst = Self::new();
+
+        for (k, v) in array {
+            bst.insert(k, v);
+        }
+
+        bst
+    }
+}
+
+impl<K: Ord, V> Extend<(K, V)> for BSTMap<K, V> {
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        for (k, v) in iter {
+            self.insert(k, v);
+        }
+    }
+}
+
+// TODO: write unit tests for iterator stuff

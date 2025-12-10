@@ -76,13 +76,15 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         while current_node.is_some() {
             // unwrap is safe inside the loop, since current_node is Some
-            current_node = match current_node.as_ref().unwrap().key.cmp(&key) {
-                Ordering::Less => &mut current_node.as_mut().unwrap().right,
-                Ordering::Greater => &mut current_node.as_mut().unwrap().left,
+            let inner = current_node.as_mut().unwrap();
+
+            current_node = match inner.key.cmp(&key) {
+                Ordering::Less => &mut inner.right,
+                Ordering::Greater => &mut inner.left,
                 Ordering::Equal => {
                     // If we find node with equal key, means the value already exists - replace and early return
                     // safe unwrap - current_node is Some
-                    let dest = &mut current_node.as_mut().unwrap().as_mut().value;
+                    let dest = &mut inner.as_mut().value;
                     return Some(mem::replace(dest, value));
                 }
             }
@@ -97,11 +99,11 @@ impl<K: Ord, V> BSTMap<K, V> {
     pub fn contains(&self, key: K) -> bool {
         let mut current_node = &self.head;
 
-        while current_node.is_some() {
+        while let Some(inner) = current_node.as_ref() {
             // unwrap is safe inside the loop, since current_node is Some
-            current_node = match current_node.as_ref().unwrap().key.cmp(&key) {
-                Ordering::Less => &current_node.as_ref().unwrap().right,
-                Ordering::Greater => &current_node.as_ref().unwrap().left,
+            current_node = match inner.key.cmp(&key) {
+                Ordering::Less => &inner.right,
+                Ordering::Greater => &inner.left,
                 Ordering::Equal => return true,
             }
         }
@@ -112,10 +114,7 @@ impl<K: Ord, V> BSTMap<K, V> {
     pub fn get(&self, key: K) -> Option<&V> {
         let mut current_node = &self.head;
 
-        while current_node.is_some() {
-            let inner = current_node.as_ref().unwrap();
-
-            // unwrap is safe inside the loop, since current_node is Some
+        while let Some(inner) = current_node.as_ref() {
             current_node = match inner.key.cmp(&key) {
                 Ordering::Less => &inner.right,
                 Ordering::Greater => &inner.left,
@@ -129,10 +128,7 @@ impl<K: Ord, V> BSTMap<K, V> {
     pub fn get_mut(&mut self, key: K) -> Option<&mut V> {
         let mut current_node = &mut self.head;
 
-        while current_node.is_some() {
-            let inner = current_node.as_mut().unwrap();
-
-            // unwrap is safe inside the loop, since current_node is Some
+        while let Some(inner) = current_node.as_mut() {
             current_node = match inner.key.cmp(&key) {
                 Ordering::Less => &mut inner.right,
                 Ordering::Greater => &mut inner.left,
@@ -143,75 +139,85 @@ impl<K: Ord, V> BSTMap<K, V> {
         None
     }
 
-    // TODO: clean this code up, if possible
     pub fn remove(&mut self, key: K) -> Option<V> {
         // First - find current node, if it is even in there
         let mut current_node = &mut self.head;
 
-        while current_node.is_some() {
-            current_node = match current_node.as_mut().unwrap().key.cmp(&key) {
+        current_node = loop {
+            if current_node.is_none() {
+                return None;
+            };
+
+            // current_node is Some, so unwrap is safe
+            current_node = match current_node.as_ref().unwrap().key.cmp(&key) {
                 Ordering::Less => &mut current_node.as_mut().unwrap().right,
                 Ordering::Greater => &mut current_node.as_mut().unwrap().left,
-                Ordering::Equal => break,
+                Ordering::Equal => break current_node,
             }
-        }
+        };
 
-        // This means that key is not in the tree - no removals
-        if current_node.is_none() {
-            return None;
-        }
-
+        // at this point we found a node, so something is getting removed, update length in advance
         self.length -= 1;
+
+        let inner = current_node.as_ref().unwrap();
 
         // Below cases are from the wikipedia article: https://en.wikipedia.org/wiki/Binary_search_tree#Deletion
         // Case 1 - leaf node - just remove and call it a day
-        if current_node.as_ref().unwrap().right.is_none()
-            && current_node.as_ref().unwrap().left.is_none()
-        {
+        if inner.right.is_none() && inner.left.is_none() {
             return Some(current_node.take().unwrap().value);
         }
 
         // Case 2 - one child - replace parent with child
-        if current_node.as_ref().unwrap().right.is_none() {
-            let mut old_node = current_node.take().unwrap();
-            *current_node = old_node.left.take();
-            return Some(old_node.value);
+        // At this point we are guaranteed that at least one of left/right is Some
+        // (due to If above) so unwraps in two If's below are safe
+        if inner.right.is_none() {
+            let Node {
+                left: saved_left,
+                value: saved_value,
+                ..
+            } = *current_node.take().unwrap();
+
+            *current_node = saved_left;
+
+            return Some(saved_value);
         }
 
-        if current_node.as_ref().unwrap().left.is_none() {
-            let mut old_node = current_node.take().unwrap();
-            *current_node = old_node.right.take();
-            return Some(old_node.value);
+        if inner.left.is_none() {
+            let Node {
+                right: saved_right,
+                value: saved_value,
+                ..
+            } = *current_node.take().unwrap();
+
+            *current_node = saved_right;
+
+            return Some(saved_value);
         }
 
         // Case 3 - two children - search for in order successor
         // Case 3a - if in order successor is immediately the right node (right node has no left subtree)
         // then replace parent with it, while keeping the left subtree
         // At this point both children are guaranteed to be Some so unwrap is safe
-        if current_node
-            .as_ref()
-            .unwrap()
-            .right
-            .as_ref()
-            .unwrap()
-            .left
-            .is_none()
-        {
-            let saved_left = current_node.as_mut().unwrap().left.take(); // save left subtree of successor
-            let saved_right = current_node.as_mut().unwrap().right.take();
-
-            let old_node = current_node.take().unwrap();
+        if inner.right.as_ref().unwrap().left.is_none() {
+            let Node {
+                left: saved_left,
+                right: saved_right,
+                value: saved_value,
+                ..
+            } = *current_node.take().unwrap();
 
             *current_node = saved_right; // replace current node with right subtree of successor
             current_node.as_mut().unwrap().left = saved_left; // append saved left subtree
 
-            return Some(old_node.value);
+            return Some(saved_value);
         }
 
         // Case 3b - in order successor is not immediately the right node - search for it
         // need to keep reference to successors parent in order to replace successor
         // successor is the left child of successors parent
         // at the beginning we are guaranteed that left node exists due to earlier if(), so unwrap is safe
+
+        // TODO: clean this code up, if possible
         let mut successors_parent = &mut current_node.as_mut().unwrap().right;
         let mut successor = &mut successors_parent.as_mut().unwrap().left;
 
@@ -227,16 +233,20 @@ impl<K: Ord, V> BSTMap<K, V> {
         // Replace successors parent's left subtree with right subtree of successor
         successors_parent.as_mut().unwrap().left = successor_inner.right;
 
-        let saved_left = current_node.as_mut().unwrap().left.take();
-        let saved_right = current_node.as_mut().unwrap().right.take();
-        let old_node = current_node.take().unwrap();
+        // Take the current node, since it is being removed (save value for now to return it)
+        let Node {
+            left: saved_left,
+            right: saved_right,
+            value: saved_value,
+            ..
+        } = *current_node.take().unwrap();
 
         // Replace removed node with successor
         successor_inner.right = saved_right;
         successor_inner.left = saved_left;
         *current_node = Some(successor_inner);
 
-        return Some(old_node.value);
+        return Some(saved_value);
     }
 
     pub fn iter(&self) -> BSTMapIter<'_, K, V> {
