@@ -20,7 +20,7 @@ use std::{
 };
 
 mod iter;
-use iter::BSTMapIter;
+use crate::iter::{BSTMapByrefInorderIter, BSTMapIntoConsumingInorderIter};
 
 mod debug;
 
@@ -249,8 +249,16 @@ impl<K: Ord, V> BSTMap<K, V> {
         return Some(saved_value);
     }
 
-    pub fn iter(&self) -> BSTMapIter<'_, K, V> {
-        BSTMapIter::new(self)
+    pub fn iter_inorder(&self) -> BSTMapByrefInorderIter<'_, K, V> {
+        BSTMapByrefInorderIter::new(self)
+    }
+
+    pub fn into_iter_inorder(self) -> BSTMapIntoConsumingInorderIter<K, V> {
+        BSTMapIntoConsumingInorderIter::new(self)
+    }
+
+    pub fn iter(&self) -> BSTMapByrefInorderIter<'_, K, V> {
+        self.iter_inorder()
     }
 }
 
@@ -315,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn nonexistent_key_returns_none() {
+    fn retrieval_of_nonexistent_key_returns_none() {
         let mut bst = BSTMap::<u32, String>::new();
 
         const KEY: u32 = 999;
@@ -326,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn existent_key_returns_some() {
+    fn retrieval_of_existent_key_returns_some() {
         let mut bst = BSTMap::<u32, String>::new();
 
         const KEY: u32 = 999;
@@ -397,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_node_with_one_child() {
+    fn removal_of_node_with_one_child() {
         let mut bst = BSTMap::<u32, String>::new();
 
         const TEST_INSERTIONS: [(u32, &str); 5] = [
@@ -445,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_node_with_two_children_and_right_node_successor() {
+    fn removal_of_node_with_two_children_and_right_node_successor() {
         let mut bst = BSTMap::<u32, String>::new();
 
         const TEST_INSERTIONS: [(u32, &str); 8] = [
@@ -494,7 +502,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_node_with_two_children_and_successor_in_right_subtree() {
+    fn removal_of_node_with_two_children_and_successor_in_right_subtree() {
         let mut bst = BSTMap::<u32, String>::new();
 
         const TEST_INSERTIONS: [(u32, &str); 11] = [

@@ -24,11 +24,11 @@ pub(crate) enum Visited {
     Right,
 }
 // Implements In-Order iteration over the BST
-pub struct BSTMapIter<'a, K: Ord, V> {
+pub struct BSTMapByrefInorderIter<'a, K: Ord, V> {
     pub(crate) stack: Vec<(&'a NodeRef<K, V>, Visited)>,
 }
 
-impl<'a, K: Ord, V> BSTMapIter<'a, K, V> {
+impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
     pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
         Self {
             stack: match &bst.head {
@@ -39,7 +39,7 @@ impl<'a, K: Ord, V> BSTMapIter<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapIter<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -87,18 +87,18 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapIter<'a, K, V> {
 impl<'a, K: Ord, V> IntoIterator for &'a BSTMap<K, V> {
     type Item = (&'a K, &'a V);
 
-    type IntoIter = BSTMapIter<'a, K, V>;
+    type IntoIter = BSTMapByrefInorderIter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        self.iter_inorder()
     }
 }
 
-pub struct BSTMapIntoIter<K, V> {
+pub struct BSTMapIntoConsumingInorderIter<K, V> {
     pub(crate) stack: Vec<(NodeRef<K, V>, Visited)>,
 }
 
-impl<K: Ord, V> BSTMapIntoIter<K, V> {
+impl<K: Ord, V> BSTMapIntoConsumingInorderIter<K, V> {
     pub(crate) fn new(bst: BSTMap<K, V>) -> Self {
         Self {
             stack: match &bst.head {
@@ -109,7 +109,7 @@ impl<K: Ord, V> BSTMapIntoIter<K, V> {
     }
 }
 
-impl<K: Ord, V> Iterator for BSTMapIntoIter<K, V> {
+impl<K: Ord, V> Iterator for BSTMapIntoConsumingInorderIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -152,10 +152,10 @@ impl<K: Ord, V> Iterator for BSTMapIntoIter<K, V> {
 impl<K: Ord, V> IntoIterator for BSTMap<K, V> {
     type Item = (K, V);
 
-    type IntoIter = BSTMapIntoIter<K, V>;
+    type IntoIter = BSTMapIntoConsumingInorderIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        BSTMapIntoIter::new(self)
+        self.into_iter_inorder()
     }
 }
 
@@ -191,4 +191,145 @@ impl<K: Ord, V> Extend<(K, V)> for BSTMap<K, V> {
     }
 }
 
-// TODO: write unit tests for iterator stuff
+#[cfg(test)]
+mod tests {
+    use super::BSTMap;
+
+    #[test]
+    fn byref_inorder_iter_is_empty_from_empty_map() {
+        let bst = BSTMap::<u32, String>::new();
+
+        assert_eq!(bst.len(), 0);
+        assert!(bst.is_empty());
+
+        let mut iter = bst.iter_inorder();
+        let next_item = iter.next();
+
+        assert!(next_item.is_none());
+    }
+
+    #[test]
+    fn byref_inorder_iter_contains_all_items() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const SERIES_OF_INSERTIONS: [(u32, &str); 5] = [
+            (13, "hello"),
+            (15, "bye"),
+            (7, "test"),
+            (2, "test2"),
+            (8, "high number"),
+        ];
+
+        for (k, v) in &SERIES_OF_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        bst.remove(7); // remove non-leaf node
+
+        let collected: Vec<(&u32, &String)> = bst.iter_inorder().collect();
+
+        const SERIES_OF_CHECKS: [(u32, &str); 4] =
+            [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
+
+        assert_eq!(collected.len(), bst.len());
+
+        for (k, v) in &SERIES_OF_CHECKS {
+            assert!(
+                collected
+                    .iter()
+                    .any(|(k_iter, v_iter)| *k == **k_iter && *v == **v_iter)
+            );
+        }
+    }
+
+    #[test]
+    fn byref_inorder_iter_is_sorted_by_key() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const SERIES_OF_INSERTIONS: [(u32, &str); 5] = [
+            (13, "hello"),
+            (15, "bye"),
+            (7, "test"),
+            (2, "test2"),
+            (8, "high number"),
+        ];
+
+        for (k, v) in &SERIES_OF_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        let collected: Vec<_> = bst.iter_inorder().map(|(k, _)| *k).collect();
+
+        assert!(collected.is_sorted());
+    }
+
+    #[test]
+    fn consuming_inorder_iter_is_empty_from_empty_map() {
+        let bst = BSTMap::<u32, String>::new();
+
+        assert_eq!(bst.len(), 0);
+        assert!(bst.is_empty());
+
+        let mut iter = bst.into_iter();
+        let next_item = iter.next();
+
+        assert!(next_item.is_none());
+    }
+
+    #[test]
+    fn consuming_inorder_iter_contains_all_items() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const SERIES_OF_INSERTIONS: [(u32, &str); 5] = [
+            (13, "hello"),
+            (15, "bye"),
+            (7, "test"),
+            (2, "test2"),
+            (8, "high number"),
+        ];
+
+        for (k, v) in &SERIES_OF_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        bst.remove(7); // remove non-leaf node
+
+        let saved_len = bst.len();
+
+        let collected: Vec<(u32, String)> = bst.into_iter().collect();
+
+        const SERIES_OF_CHECKS: [(u32, &str); 4] =
+            [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
+
+        assert_eq!(collected.len(), saved_len);
+
+        for (k, v) in &SERIES_OF_CHECKS {
+            assert!(
+                collected
+                    .iter()
+                    .any(|(k_iter, v_iter)| *k == *k_iter && *v == *v_iter)
+            );
+        }
+    }
+
+    #[test]
+    fn consuming_inorder_iter_is_sorted_by_key() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const SERIES_OF_INSERTIONS: [(u32, &str); 5] = [
+            (13, "hello"),
+            (15, "bye"),
+            (7, "test"),
+            (2, "test2"),
+            (8, "high number"),
+        ];
+
+        for (k, v) in &SERIES_OF_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        let collected: Vec<_> = bst.into_iter().map(|(k, _)| k).collect();
+
+        assert!(collected.is_sorted());
+    }
+}
