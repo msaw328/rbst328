@@ -20,7 +20,9 @@ use std::{
 };
 
 mod iter;
-use crate::iter::{BSTMapByrefInorderIter, BSTMapIntoConsumingInorderIter};
+use crate::iter::{
+    BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapConsumingInorderIter,
+};
 
 mod debug;
 
@@ -253,8 +255,12 @@ impl<K: Ord, V> BSTMap<K, V> {
         BSTMapByrefInorderIter::new(self)
     }
 
-    pub fn into_iter_inorder(self) -> BSTMapIntoConsumingInorderIter<K, V> {
-        BSTMapIntoConsumingInorderIter::new(self)
+    pub fn into_iter_inorder(self) -> BSTMapConsumingInorderIter<K, V> {
+        BSTMapConsumingInorderIter::new(self)
+    }
+
+    pub fn iter_breadthfirst(&self) -> BSTMapByrefBreadthfirstIter<'_, K, V> {
+        BSTMapByrefBreadthfirstIter::new(self)
     }
 
     pub fn iter(&self) -> BSTMapByrefInorderIter<'_, K, V> {

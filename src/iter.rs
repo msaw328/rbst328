@@ -14,28 +14,35 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use super::{BSTMap, NodeRef};
+use std::collections::VecDeque;
+
+use super::{BSTMap, Node};
 
 // what parts of the node have been visited - nothing, left subtree, node itself, right subtree
+// used by BSTMapByrefInorderIterator to add data about visited nodes to otherwise immutable tree
 pub(crate) enum Visited {
     None,
     Left,
     Node,
     Right,
 }
+
 // Implements In-Order iteration over the BST
 pub struct BSTMapByrefInorderIter<'a, K: Ord, V> {
-    pub(crate) stack: Vec<(&'a NodeRef<K, V>, Visited)>,
+    pub(crate) stack: Vec<(&'a Node<K, V>, Visited)>,
 }
 
 impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
     pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
-        Self {
-            stack: match &bst.head {
-                None => Vec::new(),
-                Some(_) => Vec::from([(&bst.head, Visited::None)]),
-            },
-        }
+        let stack = match &bst.head {
+            None => Vec::new(),
+            Some(inner_node) => {
+                let mut s = Vec::with_capacity(bst.len());
+                s.push((inner_node.as_ref(), Visited::None));
+                s
+            }
+        };
+        Self { stack }
     }
 }
 
@@ -46,30 +53,23 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
         while let Some(tuple) = self.stack.last_mut() {
             let (current_node, visited) = tuple;
 
-            if current_node.is_none() {
-                self.stack.pop();
-                continue;
-            }
-
-            let inner_node = current_node.as_ref().unwrap();
-
             match *visited {
                 Visited::None => {
                     *visited = Visited::Left;
-                    if inner_node.left.is_some() {
-                        self.stack.push((&inner_node.left, Visited::None));
+                    if let Some(left_node) = &current_node.left {
+                        self.stack.push((left_node.as_ref(), Visited::None));
                     }
                 }
 
                 Visited::Left => {
                     *visited = Visited::Node;
-                    return Some((&inner_node.key, &inner_node.value));
+                    return Some((&current_node.key, &current_node.value));
                 }
 
                 Visited::Node => {
                     *visited = Visited::Right;
-                    if inner_node.right.is_some() {
-                        self.stack.push((&inner_node.right, Visited::None));
+                    if let Some(right_node) = &current_node.right {
+                        self.stack.push((right_node.as_ref(), Visited::None));
                     }
                 }
 
@@ -84,6 +84,51 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
     }
 }
 
+// Implements breadth-first iterator over BSTMap
+pub struct BSTMapByrefBreadthfirstIter<'a, K: Ord, V> {
+    pub(crate) queue: VecDeque<&'a Node<K, V>>,
+}
+
+impl<'a, K: Ord, V> BSTMapByrefBreadthfirstIter<'a, K, V> {
+    pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
+        let queue = match &bst.head {
+            None => VecDeque::new(),
+            Some(inner_node) => {
+                let mut q = VecDeque::with_capacity(bst.len());
+                q.push_back(inner_node.as_ref());
+                q
+            }
+        };
+
+        Self { queue }
+    }
+}
+
+impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefBreadthfirstIter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_element = self.queue.pop_front();
+
+        if next_element.is_none() {
+            return None;
+        }
+
+        // safe due to if
+        let next_node = next_element.unwrap();
+
+        if let Some(left_node) = &next_node.left {
+            self.queue.push_back(left_node.as_ref());
+        }
+
+        if let Some(right_node) = &next_node.right {
+            self.queue.push_back(right_node.as_ref());
+        }
+
+        Some((&next_node.key, &next_node.value))
+    }
+}
+
 impl<'a, K: Ord, V> IntoIterator for &'a BSTMap<K, V> {
     type Item = (&'a K, &'a V);
 
@@ -94,54 +139,49 @@ impl<'a, K: Ord, V> IntoIterator for &'a BSTMap<K, V> {
     }
 }
 
-pub struct BSTMapIntoConsumingInorderIter<K, V> {
-    pub(crate) stack: Vec<(NodeRef<K, V>, Visited)>,
+pub struct BSTMapConsumingInorderIter<K, V> {
+    pub(crate) stack: Vec<Box<Node<K, V>>>,
 }
 
-impl<K: Ord, V> BSTMapIntoConsumingInorderIter<K, V> {
+impl<K: Ord, V> BSTMapConsumingInorderIter<K, V> {
     pub(crate) fn new(bst: BSTMap<K, V>) -> Self {
-        Self {
-            stack: match &bst.head {
-                None => Vec::new(),
-                Some(_) => Vec::from([(bst.head, Visited::None)]),
-            },
-        }
+        let bst_len = bst.len();
+        let stack = match bst.head {
+            None => Vec::new(),
+            Some(inner_node) => {
+                let mut s = Vec::with_capacity(bst_len);
+                s.push(inner_node);
+                s
+            }
+        };
+
+        Self { stack }
     }
 }
 
-impl<K: Ord, V> Iterator for BSTMapIntoConsumingInorderIter<K, V> {
+impl<K: Ord, V> Iterator for BSTMapConsumingInorderIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(tuple) = self.stack.pop() {
-            let (current_node, mut visited) = tuple;
+        while let Some(current_node) = self.stack.last_mut() {
+            let saved_left = current_node.left.take();
 
-            if current_node.is_none() {
-                continue;
-            }
+            // If left subtree exists
+            if let Some(saved_left) = saved_left {
+                self.stack.push(saved_left);
+            } else {
+                // If no left subtree, it means we want to consume the top of stack
+                // unwrap safe since we're in while let Some on last_mut()
+                let mut current_node = self.stack.pop().unwrap();
 
-            let mut inner_node = current_node.unwrap();
+                let saved_right = current_node.right.take();
 
-            match visited {
-                Visited::None => {
-                    visited = Visited::Left;
-
-                    let saved_left = inner_node.left.take();
-
-                    self.stack.push((Some(inner_node), visited));
-
-                    if saved_left.is_some() {
-                        self.stack.push((saved_left, Visited::None));
-                    }
+                // If right subtree exists push it to stack for further traversal
+                if let Some(saved_right) = saved_right {
+                    self.stack.push(saved_right);
                 }
 
-                Visited::Left => {
-                    let saved_right = inner_node.right.take();
-                    self.stack.push((saved_right, Visited::None));
-                    return Some((inner_node.key, inner_node.value));
-                }
-
-                _ => {}
+                return Some((current_node.key, current_node.value));
             }
         }
 
@@ -152,7 +192,7 @@ impl<K: Ord, V> Iterator for BSTMapIntoConsumingInorderIter<K, V> {
 impl<K: Ord, V> IntoIterator for BSTMap<K, V> {
     type Item = (K, V);
 
-    type IntoIter = BSTMapIntoConsumingInorderIter<K, V>;
+    type IntoIter = BSTMapConsumingInorderIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.into_iter_inorder()
@@ -193,6 +233,10 @@ impl<K: Ord, V> Extend<(K, V)> for BSTMap<K, V> {
 
 #[cfg(test)]
 mod tests {
+    use crate::iter::{
+        BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapConsumingInorderIter,
+    };
+
     use super::BSTMap;
 
     #[test]
@@ -202,7 +246,7 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
 
-        let mut iter = bst.iter_inorder();
+        let mut iter = BSTMapByrefInorderIter::new(&bst);
         let next_item = iter.next();
 
         assert!(next_item.is_none());
@@ -226,7 +270,7 @@ mod tests {
 
         bst.remove(7); // remove non-leaf node
 
-        let collected: Vec<(&u32, &String)> = bst.iter_inorder().collect();
+        let collected: Vec<(&u32, &String)> = BSTMapByrefInorderIter::new(&bst).collect();
 
         const SERIES_OF_CHECKS: [(u32, &str); 4] =
             [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
@@ -258,7 +302,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        let collected: Vec<_> = bst.iter_inorder().map(|(k, _)| *k).collect();
+        let collected: Vec<_> = BSTMapByrefInorderIter::new(&bst).map(|(k, _)| *k).collect();
 
         assert!(collected.is_sorted());
     }
@@ -270,7 +314,7 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
 
-        let mut iter = bst.into_iter();
+        let mut iter = BSTMapConsumingInorderIter::new(bst);
         let next_item = iter.next();
 
         assert!(next_item.is_none());
@@ -296,7 +340,7 @@ mod tests {
 
         let saved_len = bst.len();
 
-        let collected: Vec<(u32, String)> = bst.into_iter().collect();
+        let collected: Vec<(u32, String)> = BSTMapConsumingInorderIter::new(bst).collect();
 
         const SERIES_OF_CHECKS: [(u32, &str); 4] =
             [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
@@ -328,8 +372,57 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        let collected: Vec<_> = bst.into_iter().map(|(k, _)| k).collect();
+        let collected: Vec<_> = BSTMapConsumingInorderIter::new(bst)
+            .map(|(k, _)| k)
+            .collect();
 
         assert!(collected.is_sorted());
+    }
+
+    #[test]
+    fn byref_breadthfirst_iter_is_empty_from_empty_map() {
+        let bst = BSTMap::<u32, String>::new();
+
+        assert_eq!(bst.len(), 0);
+        assert!(bst.is_empty());
+
+        let mut iter = BSTMapByrefBreadthfirstIter::new(&bst);
+        let next_item = iter.next();
+
+        assert!(next_item.is_none());
+    }
+
+    #[test]
+    fn byref_breadthfirst_iter_contains_all_items() {
+        let mut bst = BSTMap::<u32, String>::new();
+
+        const SERIES_OF_INSERTIONS: [(u32, &str); 5] = [
+            (13, "hello"),
+            (15, "bye"),
+            (7, "test"),
+            (2, "test2"),
+            (8, "high number"),
+        ];
+
+        for (k, v) in &SERIES_OF_INSERTIONS {
+            bst.insert(*k, v.to_string());
+        }
+
+        bst.remove(7); // remove non-leaf node
+
+        let collected: Vec<(&u32, &String)> = BSTMapByrefBreadthfirstIter::new(&bst).collect();
+
+        const SERIES_OF_CHECKS: [(u32, &str); 4] =
+            [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
+
+        assert_eq!(collected.len(), bst.len());
+
+        for (k, v) in &SERIES_OF_CHECKS {
+            assert!(
+                collected
+                    .iter()
+                    .any(|(k_iter, v_iter)| *k == **k_iter && *v == **v_iter)
+            );
+        }
     }
 }

@@ -80,6 +80,13 @@ fn main() {
         (4, "hi"),
     ]);
 
+    println!("PRINTING TREE AFTER extend()");
+    bst.pretty_print();
+
+    for (key, value) in bst.iter_breadthfirst() {
+        println!("Mapping BFS: {}: \"{}\"", key, value);
+    }
+
     for (key, value) in bst {
         println!("Owned mapping: {}: \"{}\"", key, value);
     }
