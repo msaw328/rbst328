@@ -19,19 +19,19 @@ use rbst328::BSTMap;
 // TODO: remove this example file once unit tests feel complete enough?
 
 fn main() {
-    let mut bst = BSTMap::<i32, &str>::new();
-    bst.insert(10, "test");
-    bst.insert(-25, "test2");
-    bst.insert(4, "hello");
-    bst.insert(3, "hi");
-    bst.insert(15, "is it working");
-    bst.insert(-30, "negatives");
-    bst.insert(-29, "negatives2");
-    bst.insert(102, "test");
-    bst.insert(15, "123");
-    bst.insert(30, "strings as values");
-    bst.insert(2, "heyhy");
-    bst.insert(16, "utf8żółć");
+    let mut bst = BSTMap::<i32, String>::new();
+    bst.insert(10, "test".to_string());
+    bst.insert(-25, "test2".to_string());
+    bst.insert(4, "hello".to_string());
+    bst.insert(3, "hi".to_string());
+    bst.insert(15, "is it working".to_string());
+    bst.insert(-30, "negatives".to_string());
+    bst.insert(-29, "negatives2".to_string());
+    bst.insert(102, "test".to_string());
+    bst.insert(15, "123".to_string());
+    bst.insert(30, "strings as values".to_string());
+    bst.insert(2, "heyhy".to_string());
+    bst.insert(16, "utf8żółć".to_string());
 
     println!("PRINTING TREE");
     bst.pretty_print();
@@ -53,7 +53,7 @@ fn main() {
 
         if bst_ref.is_some() {
             let bst_ref = bst_ref.unwrap();
-            *bst_ref = "utf8żółćmodified";
+            *bst_ref = "utf8żółćmodified".to_string();
         }
     }
 
@@ -65,6 +65,7 @@ fn main() {
         (-40, "aasdasdasd"),
         (20, "utf8żółc"),
     ]
+    .map(|(k, v)| (k, v.to_string()))
     .into();
 
     println!("PRINTING TREE AFTER get_mut()");
@@ -74,11 +75,14 @@ fn main() {
         println!("Mapping: {}: \"{}\"", key, value);
     }
 
-    bst.extend([
-        (99, "large number"),
-        (-12, "random insert in the middle"),
-        (4, "hi"),
-    ]);
+    bst.extend(
+        [
+            (99, "large number"),
+            (-12, "random insert in the middle"),
+            (4, "hi"),
+        ]
+        .map(|(k, v)| (k, v.to_string())),
+    );
 
     println!("PRINTING TREE AFTER extend()");
     bst.pretty_print();
@@ -86,6 +90,13 @@ fn main() {
     for (key, value) in bst.iter_breadthfirst() {
         println!("Mapping BFS: {}: \"{}\"", key, value);
     }
+
+    for (_, value) in bst.iter_inorder_mut() {
+        value.insert(0, 'A');
+    }
+
+    println!("PRINTING TREE AFTER iter_mut()");
+    bst.pretty_print();
 
     for (key, value) in bst {
         println!("Owned mapping: {}: \"{}\"", key, value);
