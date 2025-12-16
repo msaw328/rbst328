@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::VecDeque, marker::PhantomData};
+use std::{collections::VecDeque, marker::PhantomData, ptr::NonNull};
 
 use super::{BSTMap, Node};
 
@@ -92,7 +92,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefInorderIter<'
 
 pub struct BSTMapByrefInorderIterMut<'a, K: Ord, V> {
     _marker: PhantomData<&'a mut Node<K, V>>, // returned mut references are to some BSTMap nodes
-    pub(crate) stack: Vec<(*mut Node<K, V>, Visited)>,
+    pub(crate) stack: Vec<(NonNull<Node<K, V>>, Visited)>,
 }
 
 impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
@@ -101,8 +101,8 @@ impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
         let stack = match &mut bst.head {
             None => Vec::new(),
             Some(inner_node) => {
-                let mut s: Vec<(*mut Node<K, V>, Visited)> = Vec::with_capacity(bst_len);
-                s.push((inner_node.as_mut(), Visited::None));
+                let mut s = Vec::with_capacity(bst_len);
+                s.push((NonNull::from_mut(inner_node.as_mut()), Visited::None));
                 s
             }
         };
@@ -120,18 +120,19 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
         while let Some(tuple) = self.stack.last_mut() {
             let (current_node, visited) = tuple;
 
-            let actual_node_ref = *current_node;
+            let mut actual_node_ref = *current_node;
 
             // Safety: the iterator mutably borrows the head node, tree will not be modified
             // during iteration. All nodes on the stack are correctly borrowed.
             // Only one pointer is dereferences at a time
-            let actual_node_ref = unsafe { &mut *actual_node_ref };
+            let actual_node_ref = unsafe { actual_node_ref.as_mut() };
 
             match *visited {
                 Visited::None => {
                     *visited = Visited::Left;
                     if let Some(left_node) = &mut actual_node_ref.left {
-                        self.stack.push((left_node.as_mut(), Visited::None));
+                        self.stack
+                            .push((NonNull::from_mut(left_node.as_mut()), Visited::None));
                     }
                 }
 
@@ -143,7 +144,8 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
                 Visited::Node => {
                     *visited = Visited::Right;
                     if let Some(right_node) = &mut actual_node_ref.right {
-                        self.stack.push((right_node.as_mut(), Visited::None));
+                        self.stack
+                            .push((NonNull::from_mut(right_node.as_mut()), Visited::None));
                     }
                 }
 
