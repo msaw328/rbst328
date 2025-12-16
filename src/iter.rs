@@ -190,12 +190,8 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefBreadthfirstIter<'a, K, V> 
     fn next(&mut self) -> Option<Self::Item> {
         let next_element = self.queue.pop_front();
 
-        if next_element.is_none() {
-            return None;
-        }
-
         // safe due to if
-        let next_node = next_element.unwrap();
+        let next_node = next_element?;
 
         if let Some(left_node) = &next_node.left {
             self.queue.push_back(left_node.as_ref());

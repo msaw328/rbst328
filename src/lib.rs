@@ -249,7 +249,7 @@ impl<K: Ord, V> BSTMap<K, V> {
         successor_inner.left = saved_left;
         *current_node = Some(successor_inner);
 
-        return Some(saved_value);
+        Some(saved_value)
     }
 
     pub fn iter_inorder(&self) -> BSTMapByrefInorderIter<'_, K, V> {
@@ -274,6 +274,12 @@ impl<K: Ord, V> BSTMap<K, V> {
 
     pub fn iter_mut(&mut self) -> BSTMapByrefInorderIterMut<'_, K, V> {
         self.iter_inorder_mut()
+    }
+}
+
+impl<K: Ord, V> Default for BSTMap<K, V> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

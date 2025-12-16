@@ -24,16 +24,13 @@ use super::BSTMap;
 impl<K: Display + Ord, V: Display> BSTMap<K, V> {
     // TODO: Probably remove this/change to debug-only
     // TODO: clean this code up and change it into a BFS function?
-    pub fn pretty_print(&self) -> () {
+    pub fn pretty_print(&self) {
         let mut current_vector = vec![&self.head];
 
         let mut space_count = 35;
 
         while current_vector.iter().any(|node| node.is_some()) {
-            print!(
-                "{}",
-                std::iter::repeat(" ").take(space_count).collect::<String>()
-            );
+            print!("{}", " ".repeat(space_count));
             for node in &current_vector {
                 if node.is_some() {
                     print!(
@@ -45,7 +42,7 @@ impl<K: Display + Ord, V: Display> BSTMap<K, V> {
                     print!("X   ");
                 }
             }
-            println!("");
+            println!();
 
             let mut next_vector = vec![];
             for node in current_vector {
