@@ -218,9 +218,9 @@ pub struct BSTMapConsumingInorderIter<K, V> {
 }
 
 impl<K: Ord, V> BSTMapConsumingInorderIter<K, V> {
-    pub(crate) fn new(bst: BSTMap<K, V>) -> Self {
+    pub(crate) fn new(mut bst: BSTMap<K, V>) -> Self {
         let bst_len = bst.len();
-        let stack = match bst.head {
+        let stack = match bst.head.take() {
             None => Vec::new(),
             Some(inner_node) => {
                 let mut s = Vec::with_capacity(bst_len);

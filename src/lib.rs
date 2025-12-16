@@ -16,6 +16,7 @@
 
 use std::{
     cmp::{Ord, Ordering},
+    collections::VecDeque,
     mem,
 };
 
@@ -280,6 +281,32 @@ impl<K: Ord, V> BSTMap<K, V> {
 impl<K: Ord, V> Default for BSTMap<K, V> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// In order to avoid recursive calls to drop
+// provide an iterative version
+impl<K: Ord, V> Drop for BSTMap<K, V> {
+    fn drop(&mut self) {
+        if self.head.is_none() {
+            return;
+        };
+
+        let mut queue = VecDeque::<Box<Node<K, V>>>::with_capacity(self.len());
+
+        queue.push_front(self.head.take().unwrap());
+
+        while let Some(mut node_box) = queue.pop_back() {
+            if let Some(node_l) = node_box.left.take() {
+                queue.push_front(node_l);
+            };
+
+            if let Some(node_r) = node_box.right.take() {
+                queue.push_front(node_r);
+            };
+
+            drop(node_box);
+        }
     }
 }
 
