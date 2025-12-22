@@ -10,16 +10,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build_test_and_source_checks:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ ubuntu-latest, windows-latest ]
 
     runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Build
       run: cargo build --verbose
+
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose --all-features
+
+    - name: Formatting
+      run: cargo fmt --all -- --check
+      
+    - name: Clippy
+      run: cargo clippy --all --all-features --tests -- -D warnings
