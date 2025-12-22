@@ -17,7 +17,7 @@ The plan is as follows:
         - :white_check_mark: `.into_iter()`
         - :white_check_mark: `.from_iter()` (and `.collect()`)
         - :white_check_mark: `.extend()`
-        - :white_check_mark: `.iter_mut()` (uses `unsafe` underneath)
+        - :white_check_mark: `.iter_mut()`
 2) Add Red-Black tree functionality to make it balanced
 3) Add serialization and deserialization from/to bytes
 4) Try sending it over a network, writing to a file or some other way of IPC/data sync
