@@ -115,11 +115,11 @@ impl<K: Ord, V> BSTMap<K, V> {
         false
     }
 
-    pub fn get(&self, key: K) -> Option<&V> {
+    pub fn get(&self, key: &K) -> Option<&V> {
         let mut current_node = &self.head;
 
         while let Some(inner) = current_node.as_ref() {
-            current_node = match inner.key.cmp(&key) {
+            current_node = match inner.key.cmp(key) {
                 Ordering::Less => &inner.right,
                 Ordering::Greater => &inner.left,
                 Ordering::Equal => return Some(&inner.value),
@@ -129,11 +129,11 @@ impl<K: Ord, V> BSTMap<K, V> {
         None
     }
 
-    pub fn get_mut(&mut self, key: K) -> Option<&mut V> {
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         let mut current_node = &mut self.head;
 
         while let Some(inner) = current_node.as_mut() {
-            current_node = match inner.key.cmp(&key) {
+            current_node = match inner.key.cmp(key) {
                 Ordering::Less => &mut inner.right,
                 Ordering::Greater => &mut inner.left,
                 Ordering::Equal => return Some(&mut inner.value),
@@ -377,8 +377,8 @@ mod tests {
         const KEY: u32 = 999;
 
         assert!(!bst.contains(KEY));
-        assert!(bst.get(KEY).is_none());
-        assert!(bst.get_mut(KEY).is_none());
+        assert!(bst.get(&KEY).is_none());
+        assert!(bst.get_mut(&KEY).is_none());
     }
 
     #[test]
@@ -390,10 +390,10 @@ mod tests {
         bst.insert(KEY, VALUE.to_string());
 
         assert!(bst.contains(KEY));
-        assert!(bst.get(KEY).is_some());
-        assert!(bst.get_mut(KEY).is_some());
-        assert_eq!(*bst.get(KEY).unwrap(), VALUE.to_string());
-        assert_eq!(*bst.get_mut(KEY).unwrap(), VALUE.to_string());
+        assert!(bst.get(&KEY).is_some());
+        assert!(bst.get_mut(&KEY).is_some());
+        assert_eq!(*bst.get(&KEY).unwrap(), VALUE.to_string());
+        assert_eq!(*bst.get_mut(&KEY).unwrap(), VALUE.to_string());
     }
 
     #[test]
@@ -480,7 +480,7 @@ mod tests {
         assert_eq!(return_val.unwrap(), "hi".to_string());
 
         // child should remain accessible
-        let mut child_node = bst.get(2);
+        let mut child_node = bst.get(&2);
 
         assert!(child_node.is_some());
         assert_eq!(*child_node.unwrap(), "leaf_node_child".to_string());
@@ -494,7 +494,7 @@ mod tests {
 
         // child should remain accessible
         assert!(bst.contains(20));
-        child_node = bst.get(20);
+        child_node = bst.get(&20);
 
         assert!(child_node.is_some());
         assert_eq!(*child_node.unwrap(), "right_child".to_string());
@@ -542,7 +542,7 @@ mod tests {
         // children should remain accessible
         for (k, v) in &CHILDREN_TO_CHECK {
             assert!(bst.contains(*k));
-            let child_node = bst.get(*k);
+            let child_node = bst.get(k);
 
             assert!(child_node.is_some());
             assert_eq!(*child_node.unwrap(), v.to_string());
@@ -599,7 +599,7 @@ mod tests {
         // children should remain accessible
         for (k, v) in &CHILDREN_TO_CHECK {
             assert!(bst.contains(*k));
-            let child_node = bst.get(*k);
+            let child_node = bst.get(k);
 
             assert!(child_node.is_some());
             assert_eq!(*child_node.unwrap(), v.to_string());
