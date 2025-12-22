@@ -64,7 +64,7 @@ fn main() {
                 }
 
                 let key = parts[1].to_string();
-                if let Some(value) = bst.get(key) {
+                if let Some(value) = bst.get(&key) {
                     println!("Ok, value = {}", value);
                 } else {
                     println!("Err, key not found");

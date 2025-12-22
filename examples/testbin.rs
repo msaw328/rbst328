@@ -49,7 +49,7 @@ fn main() {
     bst.pretty_print();
 
     {
-        let bst_ref = bst.get_mut(16);
+        let bst_ref = bst.get_mut(&16);
 
         if bst_ref.is_some() {
             let bst_ref = bst_ref.unwrap();
