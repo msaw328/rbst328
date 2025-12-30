@@ -21,8 +21,20 @@ use rbst328::BSTMap;
 fn main() {
     let mut bst = BSTMap::<i32, String>::new();
     bst.insert(10, "test".to_string());
+
+    println!("PRINTING TREE");
+    bst.pretty_print();
+
     bst.insert(-25, "test2".to_string());
+
+    println!("PRINTING TREE");
+    bst.pretty_print();
+
     bst.insert(4, "hello".to_string());
+
+    println!("PRINTING TREE");
+    bst.pretty_print();
+
     bst.insert(3, "hi".to_string());
     bst.insert(15, "is it working".to_string());
     bst.insert(-30, "negatives".to_string());
