@@ -133,6 +133,7 @@ impl<K: Ord, V> BSTMap<K, V> {
 
     // Consumes a tree rooted at the node and returns it AVL-balanced
     fn balance_subtree(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
+        root.update_height();
         if root.balance().abs() < 2 {
             return root;
         }
@@ -146,15 +147,13 @@ impl<K: Ord, V> BSTMap<K, V> {
                 root.left = Some(Self::balance_rotate_left(root.left.take().unwrap()));
                 root = Self::balance_rotate_right(root);
             }
+        } else if root.right.is_some() && root.right.as_ref().unwrap().balance() > 0 {
+            // Case Right-Right
+            root = Self::balance_rotate_left(root);
         } else {
-            if root.right.is_some() && root.right.as_ref().unwrap().balance() > 0 {
-                // Case Right-Right
-                root = Self::balance_rotate_left(root);
-            } else {
-                // Case Right-Left
-                root.right = Some(Self::balance_rotate_right(root.right.take().unwrap()));
-                root = Self::balance_rotate_left(root);
-            }
+            // Case Right-Left
+            root.right = Some(Self::balance_rotate_right(root.right.take().unwrap()));
+            root = Self::balance_rotate_left(root);
         }
 
         root
@@ -229,8 +228,6 @@ impl<K: Ord, V> BSTMap<K, V> {
                 Subtree::Left => parent_node.left = Some(inner_node),
                 Subtree::Right => parent_node.right = Some(inner_node),
             }
-
-            parent_node.update_height();
 
             inner_node = Self::balance_subtree(parent_node);
         }
