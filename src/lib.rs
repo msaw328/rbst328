@@ -34,6 +34,7 @@ type NodeRef<K, V> = Option<Box<Node<K, V>>>;
 struct Node<K, V> {
     left: NodeRef<K, V>,
     right: NodeRef<K, V>,
+    balance: i32,
     key: K,
     value: V,
 }
@@ -43,6 +44,7 @@ impl<K: Ord, V> Node<K, V> {
         Self {
             left: None,
             right: None,
+            balance: 0,
             value,
             key,
         }
@@ -75,28 +77,84 @@ impl<K: Ord, V> BSTMap<K, V> {
         self.length = 0;
     }
 
-    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-        let mut current_node = &mut self.head;
-
-        while current_node.is_some() {
-            // unwrap is safe inside the loop, since current_node is Some
-            let inner = current_node.as_mut().unwrap();
-
-            current_node = match inner.key.cmp(&key) {
-                Ordering::Less => &mut inner.right,
-                Ordering::Greater => &mut inner.left,
-                Ordering::Equal => {
-                    // If we find node with equal key, means the value already exists - replace and early return
-                    // safe unwrap - current_node is Some
-                    let dest = &mut inner.as_mut().value;
-                    return Some(mem::replace(dest, value));
-                }
-            }
+    pub fn insert(&mut self, key_insert: K, value_insert: V) -> Option<V> {
+        #[derive(PartialEq)]
+        enum Subtree {
+            Left,
+            Right,
         }
 
-        // If we left the loop means value does not exist
-        *current_node = Some(Box::new(Node::new(key, value)));
+        // TODO: consider preallocation of log(bst.len())
+        // Maybe it is not necessary though, since insert wont probably always reach max depth
+        let mut node_stack = Vec::new();
+        let mut next_candidate = self.head.take();
+
+        // loop until a node to replace is found (finds reference to Some that is to be replaced, or None that is to be filled)
+        loop {
+            // If next candidate NodeRef is None, it means this is where new value should be filled
+            if next_candidate.is_none() {
+                break;
+            };
+
+            // if next_candidate is equal to key, it means we're replacing it's value - no stack pushing needed
+            // if subtree is to be explored, push current candidate node and subtree left/right info to stack
+            let next_candidate_inner = next_candidate.as_mut().unwrap();
+            let (next_candidate_replacement, subtree) =
+                match next_candidate_inner.key.cmp(&key_insert) {
+                    Ordering::Less => (next_candidate_inner.right.take(), Subtree::Right),
+                    Ordering::Greater => (next_candidate_inner.left.take(), Subtree::Left),
+                    Ordering::Equal => break,
+                };
+
+            // Push processed node on the stack
+            node_stack.push((next_candidate.unwrap(), subtree));
+
+            // Next candidate is either left or right subtree
+            next_candidate = next_candidate_replacement;
+        }
+
+        // In the end, next_candidate was either None or Some and it is the node that is supposed to be replaced
+        let node_to_be_replaced = next_candidate;
+
+        // If the Node to be replaced is Some, it means there is no new node added
+        // replace only the value and reinsert all the nodes back in the tree
+        if let Some(mut inner_node) = node_to_be_replaced {
+            let dest = &mut inner_node.value;
+            let old_value = mem::replace(dest, value_insert);
+
+            while let Some((mut parent_node, subtree)) = node_stack.pop() {
+                match subtree {
+                    Subtree::Left => parent_node.left = Some(inner_node),
+                    Subtree::Right => parent_node.right = Some(inner_node),
+                }
+
+                inner_node = parent_node;
+            }
+
+            self.head = Some(inner_node);
+
+            return Some(old_value);
+        }
+
+        // node to be replaced is None, so a new Node will be inserted
+        // this requires us to fix all the ancestors in terms of balancing
+        let mut inner_node = Box::new(Node::new(key_insert, value_insert));
         self.length += 1;
+
+        while let Some((mut parent_node, subtree)) = node_stack.pop() {
+            match subtree {
+                Subtree::Left => parent_node.left = Some(inner_node),
+                Subtree::Right => parent_node.right = Some(inner_node),
+            }
+
+            inner_node = parent_node;
+
+            // TODO: Fix AVL balancing!
+        }
+
+        self.head = Some(inner_node);
+
+        // Since new node was inserted, return None for old_value
         None
     }
 
