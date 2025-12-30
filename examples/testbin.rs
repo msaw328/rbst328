@@ -43,9 +43,13 @@ fn main() {
     bst.insert(15, "123".to_string());
     bst.insert(30, "strings as values".to_string());
     bst.insert(2, "heyhy".to_string());
-    bst.insert(16, "utf8żółć".to_string());
+    bst.insert(17, "utf8żółć".to_string());
 
-    println!("PRINTING TREE");
+    println!("PRINTING TREE AFTER ALL INSERTS IN THE BEGINNING");
+    bst.pretty_print();
+
+    bst.insert(999, "HARD INSERT".to_string());
+    println!("PRINTING TREE AFTER HARD INSERT 1");
     bst.pretty_print();
 
     let test1 = 15;
