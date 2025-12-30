@@ -34,7 +34,7 @@ type NodeRef<K, V> = Option<Box<Node<K, V>>>;
 struct Node<K, V> {
     left: NodeRef<K, V>,
     right: NodeRef<K, V>,
-    balance: i32,
+    height: i32,
     key: K,
     value: V,
 }
@@ -44,10 +44,32 @@ impl<K: Ord, V> Node<K, V> {
         Self {
             left: None,
             right: None,
-            balance: 0,
+            height: 1,
             value,
             key,
         }
+    }
+
+    pub fn left_height(&self) -> i32 {
+        match &self.left {
+            Some(node) => node.height,
+            None => 0,
+        }
+    }
+
+    pub fn right_height(&self) -> i32 {
+        match &self.right {
+            Some(node) => node.height,
+            None => 0,
+        }
+    }
+
+    pub fn balance(&self) -> i32 {
+        self.right_height() - self.left_height()
+    }
+
+    pub fn update_height(&mut self) {
+        self.height = 1 + self.left_height().max(self.right_height())
     }
 }
 
@@ -75,6 +97,67 @@ impl<K: Ord, V> BSTMap<K, V> {
     pub fn clear(&mut self) {
         self.head = None;
         self.length = 0;
+    }
+
+    // Safety: only call if node has a left child to replace it!
+    // Assumption: root.left is Some(_)
+    // consumes root and returns a new root
+    fn balance_rotate_right(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
+        let mut left_child = root.left.take().unwrap();
+        let right_child_of_left_child = left_child.right.take();
+
+        root.left = right_child_of_left_child;
+        root.update_height();
+
+        left_child.right = Some(root);
+        left_child.update_height();
+
+        left_child
+    }
+
+    // Safety: only call if node has a right child to replace it!
+    // Assumption: root.right is Some(_)
+    // consumes root and returns a new root
+    fn balance_rotate_left(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
+        let mut right_child = root.right.take().unwrap();
+        let left_child_of_right_child = right_child.left.take();
+
+        root.right = left_child_of_right_child;
+        root.update_height();
+
+        right_child.left = Some(root);
+        right_child.update_height();
+
+        right_child
+    }
+
+    // Consumes a tree rooted at the node and returns it AVL-balanced
+    fn balance_subtree(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
+        if root.balance().abs() < 2 {
+            return root;
+        }
+
+        if root.balance() == -2 {
+            if root.left.is_some() && root.left.as_ref().unwrap().balance() < 0 {
+                // Case Left-Left
+                root = Self::balance_rotate_right(root);
+            } else {
+                // Case Left-Right
+                root.left = Some(Self::balance_rotate_left(root.left.take().unwrap()));
+                root = Self::balance_rotate_right(root);
+            }
+        } else {
+            if root.right.is_some() && root.right.as_ref().unwrap().balance() > 0 {
+                // Case Right-Right
+                root = Self::balance_rotate_left(root);
+            } else {
+                // Case Right-Left
+                root.right = Some(Self::balance_rotate_right(root.right.take().unwrap()));
+                root = Self::balance_rotate_left(root);
+            }
+        }
+
+        root
     }
 
     pub fn insert(&mut self, key_insert: K, value_insert: V) -> Option<V> {
@@ -147,9 +230,9 @@ impl<K: Ord, V> BSTMap<K, V> {
                 Subtree::Right => parent_node.right = Some(inner_node),
             }
 
-            inner_node = parent_node;
+            parent_node.update_height();
 
-            // TODO: Fix AVL balancing!
+            inner_node = Self::balance_subtree(parent_node);
         }
 
         self.head = Some(inner_node);
