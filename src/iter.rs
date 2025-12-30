@@ -119,6 +119,7 @@ impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
                     right,
                     key,
                     value,
+                    ..
                 } = inner_node.as_mut();
 
                 s.push((
@@ -146,6 +147,7 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
                     right,
                     key,
                     value,
+                    ..
                 } = inner_node;
 
                 self.stack.push((
@@ -167,6 +169,7 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
                     right,
                     key,
                     value,
+                    ..
                 } = inner_node;
 
                 self.stack.push((
