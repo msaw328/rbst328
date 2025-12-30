@@ -34,9 +34,11 @@ impl<K: Display + Ord, V: Display> BSTMap<K, V> {
             for node in &current_vector {
                 if node.is_some() {
                     print!(
-                        "{:>3}:{:>3}   ",
+                        "{:>3}:{:>3}(bf:{:>3})(h:{:>3})   ",
                         node.as_ref().unwrap().key,
-                        node.as_ref().unwrap().value
+                        node.as_ref().unwrap().value,
+                        node.as_ref().unwrap().balance(),
+                        node.as_ref().unwrap().height
                     );
                 } else {
                     print!("X   ");
