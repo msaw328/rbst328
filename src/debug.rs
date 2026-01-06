@@ -27,7 +27,7 @@ impl<K: Display + Ord, V: Display> BSTMap<K, V> {
     pub fn pretty_print(&self) {
         let mut current_vector = vec![&self.head];
 
-        let mut space_count = 35;
+        let mut space_count = 50;
 
         while current_vector.iter().any(|node| node.is_some()) {
             print!("{}", " ".repeat(space_count));
@@ -52,7 +52,7 @@ impl<K: Display + Ord, V: Display> BSTMap<K, V> {
             }
             current_vector = next_vector;
 
-            space_count -= 3;
+            space_count -= 7;
         }
     }
 }

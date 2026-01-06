@@ -23,7 +23,7 @@ use rbst328::BSTMap;
 fn main() {
     let mut bst = BSTMap::<u32, String>::new();
 
-    for i in 0..15u32 {
+    for i in 0..31u32 {
         // check duplicates too
         bst.insert(i, "test1".to_string());
         bst.insert(i, "test2".to_string());
@@ -38,7 +38,7 @@ fn main() {
     println!("PRETTY PRINT AFTER CLEAR");
     bst.pretty_print();
 
-    for i in (0..15u32).rev() {
+    for i in (0..31u32).rev() {
         // check duplicates too
         bst.insert(i, "test1".to_string());
         bst.insert(i, "test2".to_string());
@@ -47,4 +47,10 @@ fn main() {
 
     println!("PRETTY PRINT AFTER 50 DECREASING INSERTS");
     bst.pretty_print();
+
+    for i in [0, 1, 3, 7, 15].iter() {
+        bst.remove(*i);
+        println!("PRETTY PRINT AFTER REMOVE");
+        bst.pretty_print();
+    }
 }
