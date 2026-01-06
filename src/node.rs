@@ -223,6 +223,8 @@ impl<K, V> NodeRef<K, V> {
 
             self.rotate_left();
         }
+
+        self.update_height();
     }
 
     // Replaces self with successor from children of this node
@@ -239,7 +241,7 @@ impl<K, V> NodeRef<K, V> {
         // If right child has no left children, it is the immediate successor - no stack needed
         if right_taken.left().is_none() {
             let saved_left = self.left_mut().take();
-            
+
             *right_taken.left_mut() = saved_left;
 
             let old_noderef = std::mem::replace(self, right_taken);
@@ -281,7 +283,9 @@ impl<K, V> NodeRef<K, V> {
         *taken_successor.left_mut() = self.left_mut().take();
         *taken_successor.right_mut() = left_subtree;
 
-        std::mem::replace(self, taken_successor)
+        let old_node = std::mem::replace(self, taken_successor);
+        self.balance_subtree();
+        old_node
     }
 
     // Replaces self with predecessor from children of this node
@@ -298,7 +302,7 @@ impl<K, V> NodeRef<K, V> {
         // If left child has no right children, it is the immediate successor - no stack needed
         if left_taken.right().is_none() {
             let saved_right = self.right_mut().take();
-            
+
             *left_taken.left_mut() = saved_right;
 
             let old_noderef = std::mem::replace(self, left_taken);
@@ -340,7 +344,9 @@ impl<K, V> NodeRef<K, V> {
         *taken_successor.right_mut() = self.right_mut().take();
         *taken_successor.left_mut() = right_subtree;
 
-        std::mem::replace(self, taken_successor)
+        let old_node = std::mem::replace(self, taken_successor);
+        self.balance_subtree();
+        old_node
     }
 }
 

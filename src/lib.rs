@@ -229,32 +229,89 @@ impl<K: Ord, V> BSTMap<K, V> {
         None
     }
 
-    pub fn remove(&mut self, key: K) -> Option<V> {
-        // First - find current node, if it is even in there
-        let mut current_node = &mut self.head;
+    pub fn remove(&mut self, key_remove: K) -> Option<V> {
+        #[derive(PartialEq)]
+        enum Subtree {
+            Left,
+            Right,
+        }
 
-        current_node = loop {
-            if current_node.is_none() {
-                return None;
+        // TODO: consider preallocation of log(bst.len())
+        // Maybe it is not necessary though, since insert wont probably always reach max depth
+        let mut node_stack = Vec::new();
+        let mut next_candidate = self.head.take();
+
+        // loop until a node to remove is found (finds reference to Some that is to be replaced, or None that is to be filled)
+        loop {
+            // If next candidate NodeRef is None, it means this is where new value should be filled
+            if next_candidate.is_none() {
+                break;
             };
 
-            // current_node is Some, so unwrap is safe
-            current_node = match current_node.as_ref().unwrap().key().cmp(&key) {
-                Ordering::Less => current_node.as_mut().unwrap().right_mut(),
-                Ordering::Greater => current_node.as_mut().unwrap().left_mut(),
-                Ordering::Equal => break current_node,
+            // if next_candidate is equal to key, it means we're replacing it's value - no stack pushing needed
+            // if subtree is to be explored, push current candidate node and subtree left/right info to stack
+            let next_candidate_inner = next_candidate.as_mut().unwrap();
+            let (next_candidate_replacement, subtree) =
+                match next_candidate_inner.key().cmp(&key_remove) {
+                    Ordering::Less => (next_candidate_inner.right_mut().take(), Subtree::Right),
+                    Ordering::Greater => (next_candidate_inner.left_mut().take(), Subtree::Left),
+                    Ordering::Equal => break,
+                };
+
+            // Push processed node on the stack
+            node_stack.push((next_candidate.unwrap(), subtree));
+
+            // Next candidate is either left or right subtree
+            next_candidate = next_candidate_replacement;
+        }
+
+        // In the end, next_candidate was either None or Some and it is the node that is supposed to be replaced
+        let mut node_to_be_removed = next_candidate;
+
+        if node_to_be_removed.is_none() {
+            let mut child_node = node_to_be_removed;
+            // If the Node to be removed is None, it means there is no changes
+            // unwind the stack
+            while let Some((mut parent_node, subtree)) = node_stack.pop() {
+                match subtree {
+                    Subtree::Left => *parent_node.left_mut() = child_node,
+                    Subtree::Right => *parent_node.right_mut() = child_node,
+                }
+
+                child_node = Some(parent_node);
             }
-        };
+
+            self.head = child_node;
+
+            return None;
+        }
 
         // at this point we found a node, so something is getting removed, update length in advance
         self.length -= 1;
 
-        let inner = current_node.as_ref().unwrap();
+        let inner = node_to_be_removed.as_ref().unwrap();
 
         // Below cases are from the wikipedia article: https://en.wikipedia.org/wiki/Binary_search_tree#Deletion
         // Case 1 - leaf node - just remove and call it a day
         if inner.right().is_none() && inner.left().is_none() {
-            let node_ref = current_node.take().unwrap();
+            let node_ref = node_to_be_removed.unwrap();
+
+            let mut child_node = None;
+            // If the Node to be removed is None, it means there is no changes
+            // unwind the stack
+            while let Some((mut parent_node, subtree)) = node_stack.pop() {
+                match subtree {
+                    Subtree::Left => *parent_node.left_mut() = child_node,
+                    Subtree::Right => *parent_node.right_mut() = child_node,
+                }
+
+                parent_node.balance_subtree();
+
+                child_node = Some(parent_node);
+            }
+
+            self.head = child_node;
+
             return Some(node_ref.consume().value);
         }
 
@@ -262,17 +319,45 @@ impl<K: Ord, V> BSTMap<K, V> {
         // At this point we are guaranteed that at least one of left/right is Some
         // (due to If above) so unwraps in two If's below are safe
         if inner.right().is_none() {
-            let mut node_ref = current_node.take().unwrap();
+            let mut node_ref = node_to_be_removed.unwrap();
 
-            *current_node = node_ref.left_mut().take();
+            let mut child_node = node_ref.left_mut().take();
+            // If the Node to be removed is None, it means there is no changes
+            // unwind the stack
+            while let Some((mut parent_node, subtree)) = node_stack.pop() {
+                match subtree {
+                    Subtree::Left => *parent_node.left_mut() = child_node,
+                    Subtree::Right => *parent_node.right_mut() = child_node,
+                }
+
+                parent_node.balance_subtree();
+
+                child_node = Some(parent_node);
+            }
+
+            self.head = child_node;
 
             return Some(node_ref.consume().value);
         }
 
         if inner.left().is_none() {
-            let mut node_ref = current_node.take().unwrap();
+            let mut node_ref = node_to_be_removed.unwrap();
 
-            *current_node = node_ref.right_mut().take();
+            let mut child_node = node_ref.right_mut().take();
+            // If the Node to be removed is None, it means there is no changes
+            // unwind the stack
+            while let Some((mut parent_node, subtree)) = node_stack.pop() {
+                match subtree {
+                    Subtree::Left => *parent_node.left_mut() = child_node,
+                    Subtree::Right => *parent_node.right_mut() = child_node,
+                }
+
+                parent_node.balance_subtree();
+
+                child_node = Some(parent_node);
+            }
+
+            self.head = child_node;
 
             return Some(node_ref.consume().value);
         }
@@ -281,13 +366,31 @@ impl<K: Ord, V> BSTMap<K, V> {
         // If node is left-heavy, replace with predecessor
         // Otherwise, replace with successor
 
-        let inner = current_node.as_mut().unwrap();
+        let inner = node_to_be_removed.as_mut().unwrap();
 
         let old_node = if inner.balance() < 0 {
             inner.replace_with_subtree_predecessor()
         } else {
             inner.replace_with_subtree_successor()
         };
+
+        // unwind the stack
+        let mut child_node = node_to_be_removed;
+
+        // If the Node to be removed is None, it means there is no changes
+        // unwind the stack
+        while let Some((mut parent_node, subtree)) = node_stack.pop() {
+            match subtree {
+                Subtree::Left => *parent_node.left_mut() = child_node,
+                Subtree::Right => *parent_node.right_mut() = child_node,
+            }
+
+            parent_node.balance_subtree();
+
+            child_node = Some(parent_node);
+        }
+
+        self.head = child_node;
 
         Some(old_node.consume().value)
     }
