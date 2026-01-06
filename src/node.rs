@@ -62,6 +62,14 @@ impl<K, V> NodeRef<K, V> {
         &mut self.0.value
     }
 
+    pub fn kv(&self) -> (&K, &V) {
+        (&self.0.key, &self.0.value)
+    }
+
+    pub fn kv_mut(&mut self) -> (&K, &mut V) {
+        (&self.0.key, &mut self.0.value)
+    }
+
     pub fn as_ref(&mut self) -> &NodeData<K, V> {
         &self.0
     }
@@ -94,7 +102,7 @@ impl<K, V> NodeRef<K, V> {
     }
 
     // Returns AVL balance factor for given node
-    fn balance(&self) -> i32 {
+    pub fn balance(&self) -> i32 {
         self.right_height() - self.left_height()
     }
 
@@ -215,6 +223,124 @@ impl<K, V> NodeRef<K, V> {
 
             self.rotate_left();
         }
+    }
+
+    // Replaces self with successor from children of this node
+    // used during removal
+    // this is the leftmost node of the right subtree
+    // Soundness assumption: right subtree exists
+    pub fn replace_with_subtree_successor(&mut self) -> NodeRef<K, V> {
+        if self.right().is_none() {
+            panic!("Right subtree is empty when taking subtree successor");
+        }
+
+        let mut right_taken = self.right_mut().take().unwrap();
+
+        // If right child has no left children, it is the immediate successor - no stack needed
+        if right_taken.left().is_none() {
+            let saved_left = self.left_mut().take();
+            
+            *right_taken.left_mut() = saved_left;
+
+            let old_noderef = std::mem::replace(self, right_taken);
+
+            self.update_height();
+
+            return old_noderef;
+        }
+
+        // Right child has left subtree - descend
+        let mut next_node = right_taken.left_mut().take().unwrap();
+        let mut node_stack = Vec::from([right_taken]);
+
+        // Next node points at the next NullableNodeRef, but we're guaranteed that it is Some
+        // As long as that Node has a left child, we descend one level further
+        while next_node.left().is_some() {
+            let next_left = next_node.left_mut().take().unwrap();
+            node_stack.push(next_node);
+            next_node = next_left;
+        }
+
+        // Move the successor node, and save it's right subtree
+        let mut taken_successor = next_node;
+        let mut left_subtree = taken_successor.right_mut().take();
+
+        // Ascend on the stack one by one fixing every node
+        while let Some(mut parent_node) = node_stack.pop() {
+            // Append left subtree on the left of the parent node
+            *parent_node.left_mut() = left_subtree;
+
+            // Fix parent node's balance
+            parent_node.balance_subtree();
+
+            // Assign parent node to the next subtree
+            left_subtree = Some(parent_node);
+        }
+
+        // In the end, replace self with successor
+        *taken_successor.left_mut() = self.left_mut().take();
+        *taken_successor.right_mut() = left_subtree;
+
+        std::mem::replace(self, taken_successor)
+    }
+
+    // Replaces self with predecessor from children of this node
+    // used during removal
+    // this is the rightmost node of the left subtree
+    // Soundness assumption: left subtree exists
+    pub fn replace_with_subtree_predecessor(&mut self) -> NodeRef<K, V> {
+        if self.left().is_none() {
+            panic!("Left subtree is empty when taking subtree predecessor");
+        }
+
+        let mut left_taken = self.left_mut().take().unwrap();
+
+        // If left child has no right children, it is the immediate successor - no stack needed
+        if left_taken.right().is_none() {
+            let saved_right = self.right_mut().take();
+            
+            *left_taken.left_mut() = saved_right;
+
+            let old_noderef = std::mem::replace(self, left_taken);
+
+            self.update_height();
+
+            return old_noderef;
+        }
+
+        // Left child has right subtree - descend
+        let mut next_node = left_taken.right_mut().take().unwrap();
+        let mut node_stack = Vec::from([left_taken]);
+
+        // Next node points at the next NullableNodeRef, but we're guaranteed that it is Some
+        // As long as that Node has a right child, we descend one level further
+        while next_node.right().is_some() {
+            let next_right = next_node.right_mut().take().unwrap();
+            node_stack.push(next_node);
+            next_node = next_right;
+        }
+
+        // Move the successor node, and save it's right subtree
+        let mut taken_successor = next_node;
+        let mut right_subtree = taken_successor.left_mut().take();
+
+        // Ascend on the stack one by one fixing every node
+        while let Some(mut parent_node) = node_stack.pop() {
+            // Append left subtree on the left of the parent node
+            *parent_node.right_mut() = right_subtree;
+
+            // Fix parent node's balance
+            parent_node.balance_subtree();
+
+            // Assign parent node to the next subtree
+            right_subtree = Some(parent_node);
+        }
+
+        // In the end, replace self with successor
+        *taken_successor.right_mut() = self.right_mut().take();
+        *taken_successor.left_mut() = right_subtree;
+
+        std::mem::replace(self, taken_successor)
     }
 }
 
