@@ -277,49 +277,19 @@ impl<K: Ord, V> BSTMap<K, V> {
             return Some(node_ref.consume().value);
         }
 
-        // Case 3 - two children - search for in order successor
-        // Case 3a - if in order successor is immediately the right node (right node has no left subtree)
-        // then replace parent with it, while keeping the left subtree
-        // At this point both children are guaranteed to be Some so unwrap is safe
-        if inner.right().as_ref().unwrap().left().is_none() {
-            let mut node_ref = current_node.take().unwrap();
+        // Case 3a and 3b
+        // If node is left-heavy, replace with predecessor
+        // Otherwise, replace with successor
 
-            *current_node = node_ref.right_mut().take(); // replace current node with right subtree of successor
-            *current_node.as_mut().unwrap().left_mut() = node_ref.left_mut().take(); // append saved left subtree
+        let inner = current_node.as_mut().unwrap();
 
-            return Some(node_ref.consume().value);
-        }
+        let old_node = if inner.balance() < 0 {
+            inner.replace_with_subtree_predecessor()
+        } else {
+            inner.replace_with_subtree_successor()
+        };
 
-        // Case 3b - in order successor is not immediately the right node - search for it
-        // need to keep reference to successors parent in order to replace successor
-        // successor is the left child of successors parent
-        // at the beginning we are guaranteed that left node exists due to earlier if(), so unwrap is safe
-
-        // TODO: clean this code up, if possible
-        let mut successors_parent = current_node.as_mut().unwrap().right_mut();
-        let mut successor = successors_parent.as_mut().unwrap().left_mut();
-
-        // While successor has a left subtree, move one level lower to the left
-        while successor.as_ref().unwrap().left().is_some() {
-            successors_parent = successors_parent.as_mut().unwrap().left_mut();
-            successor = successors_parent.as_mut().unwrap().left_mut();
-        }
-
-        // Store inner Boxed node of successor for easier access - also take it, since we're moving it anyways
-        let mut successor_inner = successor.take().unwrap();
-
-        // Replace successors parent's left subtree with right subtree of successor
-        *successors_parent.as_mut().unwrap().left_mut() = successor_inner.right_mut().take();
-
-        // Take the current node, since it is being removed (save value for now to return it)
-        let mut node_ref = current_node.take().unwrap();
-
-        // Replace removed node with successor
-        *successor_inner.right_mut() = node_ref.right_mut().take();
-        *successor_inner.left_mut() = node_ref.left_mut().take();
-        *current_node = Some(successor_inner);
-
-        Some(node_ref.consume().value)
+        Some(old_node.consume().value)
     }
 
     pub fn iter_inorder(&self) -> BSTMapByrefInorderIter<'_, K, V> {
