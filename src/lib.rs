@@ -21,13 +21,20 @@ use std::{
 };
 
 mod iter;
-use crate::iter::{
-    BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapByrefInorderIterMut,
-    BSTMapConsumingInorderIter,
+use crate::{
+    iter::{
+        BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapByrefInorderIterMut,
+        BSTMapConsumingInorderIter,
+    },
+    node::NodeRef,
 };
 
 mod debug;
 
+mod node;
+use crate::node::NullableNodeRef;
+
+/*
 // Shorthand for a referece to a Box'ed node that may or may not be there
 type NodeRef<K, V> = Option<Box<Node<K, V>>>;
 
@@ -71,10 +78,10 @@ impl<K: Ord, V> Node<K, V> {
     pub fn update_height(&mut self) {
         self.height = 1 + self.left_height().max(self.right_height())
     }
-}
+}*/
 
 pub struct BSTMap<K: Ord, V> {
-    head: NodeRef<K, V>,
+    head: NullableNodeRef<K, V>,
     length: usize,
 }
 
@@ -97,66 +104,6 @@ impl<K: Ord, V> BSTMap<K, V> {
     pub fn clear(&mut self) {
         self.head = None;
         self.length = 0;
-    }
-
-    // Safety: only call if node has a left child to replace it!
-    // Assumption: root.left is Some(_)
-    // consumes root and returns a new root
-    fn balance_rotate_right(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
-        let mut left_child = root.left.take().unwrap();
-        let right_child_of_left_child = left_child.right.take();
-
-        root.left = right_child_of_left_child;
-        root.update_height();
-
-        left_child.right = Some(root);
-        left_child.update_height();
-
-        left_child
-    }
-
-    // Safety: only call if node has a right child to replace it!
-    // Assumption: root.right is Some(_)
-    // consumes root and returns a new root
-    fn balance_rotate_left(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
-        let mut right_child = root.right.take().unwrap();
-        let left_child_of_right_child = right_child.left.take();
-
-        root.right = left_child_of_right_child;
-        root.update_height();
-
-        right_child.left = Some(root);
-        right_child.update_height();
-
-        right_child
-    }
-
-    // Consumes a tree rooted at the node and returns it AVL-balanced
-    fn balance_subtree(mut root: Box<Node<K, V>>) -> Box<Node<K, V>> {
-        root.update_height();
-        if root.balance().abs() < 2 {
-            return root;
-        }
-
-        if root.balance() == -2 {
-            if root.left.is_some() && root.left.as_ref().unwrap().balance() < 0 {
-                // Case Left-Left
-                root = Self::balance_rotate_right(root);
-            } else {
-                // Case Left-Right
-                root.left = Some(Self::balance_rotate_left(root.left.take().unwrap()));
-                root = Self::balance_rotate_right(root);
-            }
-        } else if root.right.is_some() && root.right.as_ref().unwrap().balance() > 0 {
-            // Case Right-Right
-            root = Self::balance_rotate_left(root);
-        } else {
-            // Case Right-Left
-            root.right = Some(Self::balance_rotate_right(root.right.take().unwrap()));
-            root = Self::balance_rotate_left(root);
-        }
-
-        root
     }
 
     pub fn insert(&mut self, key_insert: K, value_insert: V) -> Option<V> {
@@ -182,9 +129,9 @@ impl<K: Ord, V> BSTMap<K, V> {
             // if subtree is to be explored, push current candidate node and subtree left/right info to stack
             let next_candidate_inner = next_candidate.as_mut().unwrap();
             let (next_candidate_replacement, subtree) =
-                match next_candidate_inner.key.cmp(&key_insert) {
-                    Ordering::Less => (next_candidate_inner.right.take(), Subtree::Right),
-                    Ordering::Greater => (next_candidate_inner.left.take(), Subtree::Left),
+                match next_candidate_inner.key().cmp(&key_insert) {
+                    Ordering::Less => (next_candidate_inner.right_mut().take(), Subtree::Right),
+                    Ordering::Greater => (next_candidate_inner.left_mut().take(), Subtree::Left),
                     Ordering::Equal => break,
                 };
 
@@ -201,13 +148,13 @@ impl<K: Ord, V> BSTMap<K, V> {
         // If the Node to be replaced is Some, it means there is no new node added
         // replace only the value and reinsert all the nodes back in the tree
         if let Some(mut inner_node) = node_to_be_replaced {
-            let dest = &mut inner_node.value;
+            let dest = inner_node.value_mut();
             let old_value = mem::replace(dest, value_insert);
 
             while let Some((mut parent_node, subtree)) = node_stack.pop() {
                 match subtree {
-                    Subtree::Left => parent_node.left = Some(inner_node),
-                    Subtree::Right => parent_node.right = Some(inner_node),
+                    Subtree::Left => *parent_node.left_mut() = Some(inner_node),
+                    Subtree::Right => *parent_node.right_mut() = Some(inner_node),
                 }
 
                 inner_node = parent_node;
@@ -220,16 +167,17 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         // node to be replaced is None, so a new Node will be inserted
         // this requires us to fix all the ancestors in terms of balancing
-        let mut inner_node = Box::new(Node::new(key_insert, value_insert));
+        let mut inner_node = NodeRef::new(key_insert, value_insert);
         self.length += 1;
 
         while let Some((mut parent_node, subtree)) = node_stack.pop() {
             match subtree {
-                Subtree::Left => parent_node.left = Some(inner_node),
-                Subtree::Right => parent_node.right = Some(inner_node),
+                Subtree::Left => *parent_node.left_mut() = Some(inner_node),
+                Subtree::Right => *parent_node.right_mut() = Some(inner_node),
             }
 
-            inner_node = Self::balance_subtree(parent_node);
+            parent_node.balance_subtree();
+            inner_node = parent_node;
         }
 
         self.head = Some(inner_node);
@@ -243,9 +191,9 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         while let Some(inner) = current_node.as_ref() {
             // unwrap is safe inside the loop, since current_node is Some
-            current_node = match inner.key.cmp(&key) {
-                Ordering::Less => &inner.right,
-                Ordering::Greater => &inner.left,
+            current_node = match inner.key().cmp(&key) {
+                Ordering::Less => inner.right(),
+                Ordering::Greater => inner.left(),
                 Ordering::Equal => return true,
             }
         }
@@ -257,10 +205,10 @@ impl<K: Ord, V> BSTMap<K, V> {
         let mut current_node = &self.head;
 
         while let Some(inner) = current_node.as_ref() {
-            current_node = match inner.key.cmp(key) {
-                Ordering::Less => &inner.right,
-                Ordering::Greater => &inner.left,
-                Ordering::Equal => return Some(&inner.value),
+            current_node = match inner.key().cmp(key) {
+                Ordering::Less => inner.right(),
+                Ordering::Greater => inner.left(),
+                Ordering::Equal => return Some(inner.value()),
             }
         }
 
@@ -271,10 +219,10 @@ impl<K: Ord, V> BSTMap<K, V> {
         let mut current_node = &mut self.head;
 
         while let Some(inner) = current_node.as_mut() {
-            current_node = match inner.key.cmp(key) {
-                Ordering::Less => &mut inner.right,
-                Ordering::Greater => &mut inner.left,
-                Ordering::Equal => return Some(&mut inner.value),
+            current_node = match inner.key().cmp(key) {
+                Ordering::Less => inner.right_mut(),
+                Ordering::Greater => inner.left_mut(),
+                Ordering::Equal => return Some(inner.value_mut()),
             }
         }
 
@@ -291,9 +239,9 @@ impl<K: Ord, V> BSTMap<K, V> {
             };
 
             // current_node is Some, so unwrap is safe
-            current_node = match current_node.as_ref().unwrap().key.cmp(&key) {
-                Ordering::Less => &mut current_node.as_mut().unwrap().right,
-                Ordering::Greater => &mut current_node.as_mut().unwrap().left,
+            current_node = match current_node.as_ref().unwrap().key().cmp(&key) {
+                Ordering::Less => current_node.as_mut().unwrap().right_mut(),
+                Ordering::Greater => current_node.as_mut().unwrap().left_mut(),
                 Ordering::Equal => break current_node,
             }
         };
@@ -305,53 +253,41 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         // Below cases are from the wikipedia article: https://en.wikipedia.org/wiki/Binary_search_tree#Deletion
         // Case 1 - leaf node - just remove and call it a day
-        if inner.right.is_none() && inner.left.is_none() {
-            return Some(current_node.take().unwrap().value);
+        if inner.right().is_none() && inner.left().is_none() {
+            let node_ref = current_node.take().unwrap();
+            return Some(node_ref.consume().value);
         }
 
         // Case 2 - one child - replace parent with child
         // At this point we are guaranteed that at least one of left/right is Some
         // (due to If above) so unwraps in two If's below are safe
-        if inner.right.is_none() {
-            let Node {
-                left: saved_left,
-                value: saved_value,
-                ..
-            } = *current_node.take().unwrap();
+        if inner.right().is_none() {
+            let mut node_ref = current_node.take().unwrap();
 
-            *current_node = saved_left;
+            *current_node = node_ref.left_mut().take();
 
-            return Some(saved_value);
+            return Some(node_ref.consume().value);
         }
 
-        if inner.left.is_none() {
-            let Node {
-                right: saved_right,
-                value: saved_value,
-                ..
-            } = *current_node.take().unwrap();
+        if inner.left().is_none() {
+            let mut node_ref = current_node.take().unwrap();
 
-            *current_node = saved_right;
+            *current_node = node_ref.right_mut().take();
 
-            return Some(saved_value);
+            return Some(node_ref.consume().value);
         }
 
         // Case 3 - two children - search for in order successor
         // Case 3a - if in order successor is immediately the right node (right node has no left subtree)
         // then replace parent with it, while keeping the left subtree
         // At this point both children are guaranteed to be Some so unwrap is safe
-        if inner.right.as_ref().unwrap().left.is_none() {
-            let Node {
-                left: saved_left,
-                right: saved_right,
-                value: saved_value,
-                ..
-            } = *current_node.take().unwrap();
+        if inner.right().as_ref().unwrap().left().is_none() {
+            let mut node_ref = current_node.take().unwrap();
 
-            *current_node = saved_right; // replace current node with right subtree of successor
-            current_node.as_mut().unwrap().left = saved_left; // append saved left subtree
+            *current_node = node_ref.right_mut().take(); // replace current node with right subtree of successor
+            *current_node.as_mut().unwrap().left_mut() = node_ref.left_mut().take(); // append saved left subtree
 
-            return Some(saved_value);
+            return Some(node_ref.consume().value);
         }
 
         // Case 3b - in order successor is not immediately the right node - search for it
@@ -360,35 +296,30 @@ impl<K: Ord, V> BSTMap<K, V> {
         // at the beginning we are guaranteed that left node exists due to earlier if(), so unwrap is safe
 
         // TODO: clean this code up, if possible
-        let mut successors_parent = &mut current_node.as_mut().unwrap().right;
-        let mut successor = &mut successors_parent.as_mut().unwrap().left;
+        let mut successors_parent = current_node.as_mut().unwrap().right_mut();
+        let mut successor = successors_parent.as_mut().unwrap().left_mut();
 
         // While successor has a left subtree, move one level lower to the left
-        while successor.as_ref().unwrap().left.is_some() {
-            successors_parent = &mut successors_parent.as_mut().unwrap().left;
-            successor = &mut successors_parent.as_mut().unwrap().left;
+        while successor.as_ref().unwrap().left().is_some() {
+            successors_parent = successors_parent.as_mut().unwrap().left_mut();
+            successor = successors_parent.as_mut().unwrap().left_mut();
         }
 
         // Store inner Boxed node of successor for easier access - also take it, since we're moving it anyways
         let mut successor_inner = successor.take().unwrap();
 
         // Replace successors parent's left subtree with right subtree of successor
-        successors_parent.as_mut().unwrap().left = successor_inner.right;
+        *successors_parent.as_mut().unwrap().left_mut() = successor_inner.right_mut().take();
 
         // Take the current node, since it is being removed (save value for now to return it)
-        let Node {
-            left: saved_left,
-            right: saved_right,
-            value: saved_value,
-            ..
-        } = *current_node.take().unwrap();
+        let mut node_ref = current_node.take().unwrap();
 
         // Replace removed node with successor
-        successor_inner.right = saved_right;
-        successor_inner.left = saved_left;
+        *successor_inner.right_mut() = node_ref.right_mut().take();
+        *successor_inner.left_mut() = node_ref.left_mut().take();
         *current_node = Some(successor_inner);
 
-        Some(saved_value)
+        Some(node_ref.consume().value)
     }
 
     pub fn iter_inorder(&self) -> BSTMapByrefInorderIter<'_, K, V> {
@@ -430,16 +361,16 @@ impl<K: Ord, V> Drop for BSTMap<K, V> {
             return;
         };
 
-        let mut queue = VecDeque::<Box<Node<K, V>>>::with_capacity(self.len());
+        let mut queue = VecDeque::<NodeRef<K, V>>::with_capacity(self.len());
 
         queue.push_front(self.head.take().unwrap());
 
         while let Some(mut node_box) = queue.pop_back() {
-            if let Some(node_l) = node_box.left.take() {
+            if let Some(node_l) = node_box.left_mut().take() {
                 queue.push_front(node_l);
             };
 
-            if let Some(node_r) = node_box.right.take() {
+            if let Some(node_r) = node_box.right_mut().take() {
                 queue.push_front(node_r);
             };
 

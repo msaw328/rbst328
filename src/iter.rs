@@ -16,7 +16,9 @@
 
 use std::collections::VecDeque;
 
-use super::{BSTMap, Node};
+use crate::node::NodeData;
+
+use super::{BSTMap, NodeRef};
 
 // what parts of the node have been visited - nothing, left subtree, node itself, right subtree
 // used by BSTMapByrefInorderIterator to add data about visited nodes to otherwise immutable tree
@@ -29,7 +31,7 @@ pub(crate) enum Visited {
 
 // Implements In-Order iteration over the BST
 pub struct BSTMapByrefInorderIter<'a, K: Ord, V> {
-    pub(crate) stack: Vec<(&'a Node<K, V>, Visited)>,
+    pub(crate) stack: Vec<(&'a NodeRef<K, V>, Visited)>,
 }
 
 impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
@@ -38,7 +40,7 @@ impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
             None => Vec::new(),
             Some(inner_node) => {
                 let mut s = Vec::with_capacity(bst.len());
-                s.push((inner_node.as_ref(), Visited::None));
+                s.push((inner_node, Visited::None));
                 s
             }
         };
@@ -56,20 +58,20 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
             match *visited {
                 Visited::None => {
                     *visited = Visited::Left;
-                    if let Some(left_node) = &current_node.left {
-                        self.stack.push((left_node.as_ref(), Visited::None));
+                    if let Some(left_node) = current_node.left() {
+                        self.stack.push((left_node, Visited::None));
                     }
                 }
 
                 Visited::Left => {
                     *visited = Visited::Node;
-                    return Some((&current_node.key, &current_node.value));
+                    return Some((current_node.key(), current_node.value()));
                 }
 
                 Visited::Node => {
                     *visited = Visited::Right;
-                    if let Some(right_node) = &current_node.right {
-                        self.stack.push((right_node.as_ref(), Visited::None));
+                    if let Some(right_node) = current_node.right() {
+                        self.stack.push((right_node, Visited::None));
                     }
                 }
 
@@ -95,7 +97,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefInorderIter<'
 // OptionalSubtree - owned Option with &mut to a Node<K, V> - Some if unexplored, None if empty or explored
 // OptionalKVMut - a tuple of shared reference to key type and mutable reference to value type
 // LeftKVMutRight - a tuple containing, in order: optional left subtree to be explored, KV references, right subtree to be explored
-type OptionalSubtree<'a, K, V> = Option<&'a mut Node<K, V>>;
+type OptionalSubtree<'a, K, V> = Option<&'a mut NodeRef<K, V>>;
 type OptionalKVMut<'a, K, V> = Option<(&'a K, &'a mut V)>;
 type LeftKVMutRight<'a, K, V> = (
     OptionalSubtree<'a, K, V>,
@@ -114,7 +116,7 @@ impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
             Some(inner_node) => {
                 let mut s = Vec::with_capacity(bst_len);
 
-                let Node {
+                let NodeData {
                     left,
                     right,
                     key,
@@ -122,11 +124,7 @@ impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
                     ..
                 } = inner_node.as_mut();
 
-                s.push((
-                    left.as_mut().map(|node| node.as_mut()),
-                    Some((&*key, value)),
-                    right.as_mut().map(|node| node.as_mut()),
-                ));
+                s.push((left.as_mut(), Some((&*key, value)), right.as_mut()));
                 s
             }
         };
@@ -142,19 +140,16 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
             let (left_ref, current_kv, right_ref) = tuple;
 
             if let Some(inner_node) = left_ref.take() {
-                let Node {
+                let NodeData {
                     left,
                     right,
                     key,
                     value,
                     ..
-                } = inner_node;
+                } = inner_node.as_mut();
 
-                self.stack.push((
-                    left.as_mut().map(|node| node.as_mut()),
-                    Some((&*key, value)),
-                    right.as_mut().map(|node| node.as_mut()),
-                ));
+                self.stack
+                    .push((left.as_mut(), Some((&*key, value)), right.as_mut()));
 
                 continue;
             }
@@ -164,19 +159,16 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
             }
 
             if let Some(inner_node) = right_ref.take() {
-                let Node {
+                let NodeData {
                     left,
                     right,
                     key,
                     value,
                     ..
-                } = inner_node;
+                } = inner_node.as_mut();
 
-                self.stack.push((
-                    left.as_mut().map(|node| node.as_mut()),
-                    Some((&*key, value)),
-                    right.as_mut().map(|node| node.as_mut()),
-                ));
+                self.stack
+                    .push((left.as_mut(), Some((&*key, value)), right.as_mut()));
 
                 continue;
             }
@@ -196,7 +188,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a mut BSTMap<K, V>> for BSTMapByrefInorderIt
 
 // Implements breadth-first iterator over BSTMap
 pub struct BSTMapByrefBreadthfirstIter<'a, K: Ord, V> {
-    pub(crate) queue: VecDeque<&'a Node<K, V>>,
+    pub(crate) queue: VecDeque<&'a NodeRef<K, V>>,
 }
 
 impl<'a, K: Ord, V> BSTMapByrefBreadthfirstIter<'a, K, V> {
@@ -205,7 +197,7 @@ impl<'a, K: Ord, V> BSTMapByrefBreadthfirstIter<'a, K, V> {
             None => VecDeque::new(),
             Some(inner_node) => {
                 let mut q = VecDeque::with_capacity(bst.len());
-                q.push_back(inner_node.as_ref());
+                q.push_back(inner_node);
                 q
             }
         };
@@ -223,15 +215,15 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefBreadthfirstIter<'a, K, V> 
         // safe due to if
         let next_node = next_element?;
 
-        if let Some(left_node) = &next_node.left {
-            self.queue.push_back(left_node.as_ref());
+        if let Some(left_node) = next_node.left() {
+            self.queue.push_back(left_node);
         }
 
-        if let Some(right_node) = &next_node.right {
-            self.queue.push_back(right_node.as_ref());
+        if let Some(right_node) = next_node.right() {
+            self.queue.push_back(right_node);
         }
 
-        Some((&next_node.key, &next_node.value))
+        Some((next_node.key(), next_node.value()))
     }
 }
 
@@ -242,7 +234,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefBreadthfirstI
 }
 
 pub struct BSTMapConsumingInorderIter<K, V> {
-    pub(crate) stack: Vec<Box<Node<K, V>>>,
+    pub(crate) stack: Vec<NodeRef<K, V>>,
 }
 
 impl<K: Ord, V> BSTMapConsumingInorderIter<K, V> {
@@ -266,7 +258,7 @@ impl<K: Ord, V> Iterator for BSTMapConsumingInorderIter<K, V> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(current_node) = self.stack.last_mut() {
-            let saved_left = current_node.left.take();
+            let saved_left = current_node.left_mut().take();
 
             // If left subtree exists
             if let Some(saved_left) = saved_left {
@@ -276,14 +268,16 @@ impl<K: Ord, V> Iterator for BSTMapConsumingInorderIter<K, V> {
                 // unwrap safe since we're in while let Some on last_mut()
                 let mut current_node = self.stack.pop().unwrap();
 
-                let saved_right = current_node.right.take();
+                let saved_right = current_node.right_mut().take();
 
                 // If right subtree exists push it to stack for further traversal
                 if let Some(saved_right) = saved_right {
                     self.stack.push(saved_right);
                 }
 
-                return Some((current_node.key, current_node.value));
+                let NodeData { key, value, .. } = current_node.consume();
+
+                return Some((key, value));
             }
         }
 
