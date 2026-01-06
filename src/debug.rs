@@ -33,13 +33,7 @@ impl<K: Display + Ord, V: Display> BSTMap<K, V> {
             print!("{}", " ".repeat(space_count));
             for node in &current_vector {
                 if node.is_some() {
-                    print!(
-                        "{:>3}:{:>3}(bf:{:>3})(h:{:>3})   ",
-                        node.as_ref().unwrap().key,
-                        node.as_ref().unwrap().value,
-                        node.as_ref().unwrap().balance(),
-                        node.as_ref().unwrap().height
-                    );
+                    print!("{}   ", node.as_ref().unwrap());
                 } else {
                     print!("X   ");
                 }
@@ -49,8 +43,8 @@ impl<K: Display + Ord, V: Display> BSTMap<K, V> {
             let mut next_vector = vec![];
             for node in current_vector {
                 if node.is_some() {
-                    next_vector.push(&(node.as_ref().unwrap().left));
-                    next_vector.push(&(node.as_ref().unwrap().right));
+                    next_vector.push(node.as_ref().unwrap().left());
+                    next_vector.push(node.as_ref().unwrap().right());
                 } else {
                     next_vector.push(&None);
                     next_vector.push(&None);
