@@ -21,7 +21,7 @@ use std::fmt::Display;
 
 use super::BSTMap;
 
-#[cfg(not(doc))]
+#[doc(hidden)]
 impl<K: Display + Ord, V: Display> BSTMap<K, V> {
     // TODO: Probably remove this/change to debug-only
     // TODO: clean this code up and change it into a BFS function?
