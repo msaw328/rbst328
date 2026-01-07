@@ -461,3 +461,274 @@ pub struct NodeData<K, V> {
     pub key: K,
     pub value: V,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::NodeRef;
+
+    #[test]
+    fn balance_factor_and_height_are_updated_correctly() {
+        //      10
+        //     /  \
+        //    5    12
+        //   /
+        //  2
+
+        let mut root = NodeRef::new(5, 12);
+        *root.right_mut() = Some(NodeRef::new(10, 23));
+        *root.left_mut() = Some(NodeRef::new(5, 1111));
+        *root.left_mut().as_mut().unwrap().left_mut() = Some(NodeRef::new(2, 1111));
+
+        root.left_mut()
+            .as_mut()
+            .unwrap()
+            .left_mut()
+            .as_mut()
+            .unwrap()
+            .update_height();
+        root.left_mut().as_mut().unwrap().update_height();
+        root.right_mut().as_mut().unwrap().update_height();
+        root.update_height();
+
+        assert_eq!(root.balance(), -1);
+        assert_eq!(root.right().as_ref().unwrap().balance(), 0);
+        assert_eq!(root.left().as_ref().unwrap().balance(), -1);
+        assert_eq!(
+            root.left()
+                .as_ref()
+                .unwrap()
+                .left()
+                .as_ref()
+                .unwrap()
+                .balance(),
+            0
+        );
+
+        assert_eq!(root.0.height, 3);
+    }
+
+    #[test]
+    fn removal_of_leaf_node() {
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let root = NodeRef::new(KEY, VALUE);
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Leaf nodes are left empty
+        assert!(replacement_tree.is_none());
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_left_child() {
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let mut root = NodeRef::new(KEY, VALUE);
+
+        const CHILD_KEY: u32 = 2u32;
+        const CHILD_VALUE: u32 = 15u32;
+        *root.left_mut() = Some(NodeRef::new(CHILD_KEY, CHILD_VALUE));
+        root.update_height();
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Nodes with 1 child are replaced with it
+        assert!(replacement_tree.is_some());
+        assert_eq!(*replacement_tree.as_ref().unwrap().key(), CHILD_KEY);
+        assert_eq!(*replacement_tree.as_ref().unwrap().value(), CHILD_VALUE);
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_right_child() {
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let mut root = NodeRef::new(KEY, VALUE);
+
+        const CHILD_KEY: u32 = 12u32;
+        const CHILD_VALUE: u32 = 15u32;
+        *root.right_mut() = Some(NodeRef::new(CHILD_KEY, CHILD_VALUE));
+        root.update_height();
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Nodes with 1 child are replaced with it
+        assert!(replacement_tree.is_some());
+        assert_eq!(*replacement_tree.as_ref().unwrap().key(), CHILD_KEY);
+        assert_eq!(*replacement_tree.as_ref().unwrap().value(), CHILD_VALUE);
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_two_children_left_left_heavy() {
+        //      10
+        //     /  \
+        //    2   12
+        //   /
+        //  1
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let mut root = NodeRef::new(KEY, VALUE);
+
+        const PREDECESSOR_KEY: u32 = 2u32;
+        const PREDECESSOR_VALUE: u32 = 999u32;
+        let left_mut = root.left_mut();
+        *left_mut = Some(NodeRef::new(PREDECESSOR_KEY, PREDECESSOR_VALUE));
+
+        *left_mut.as_mut().unwrap().left_mut() = Some(NodeRef::new(1u32, 89u32));
+        left_mut.as_mut().unwrap().update_height();
+
+        *root.right_mut() = Some(NodeRef::new(12u32, 15u32));
+        root.update_height();
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Nodes with 1 child are replaced with it
+        assert!(replacement_tree.is_some());
+        assert_eq!(*replacement_tree.as_ref().unwrap().key(), PREDECESSOR_KEY);
+        assert_eq!(
+            *replacement_tree.as_ref().unwrap().value(),
+            PREDECESSOR_VALUE
+        );
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_two_children_left_right_heavy() {
+        //      10
+        //     /  \
+        //    2   12
+        //     \
+        //      8
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let mut root = NodeRef::new(KEY, VALUE);
+
+        let left_mut = root.left_mut();
+        *left_mut = Some(NodeRef::new(2u32, 123u32));
+
+        const PREDECESSOR_KEY: u32 = 8u32;
+        const PREDECESSOR_VALUE: u32 = 999u32;
+        *left_mut.as_mut().unwrap().right_mut() =
+            Some(NodeRef::new(PREDECESSOR_KEY, PREDECESSOR_VALUE));
+        left_mut.as_mut().unwrap().update_height();
+
+        *root.right_mut() = Some(NodeRef::new(12u32, 15u32));
+        root.update_height();
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Nodes with 1 child are replaced with it
+        assert!(replacement_tree.is_some());
+        assert_eq!(*replacement_tree.as_ref().unwrap().key(), PREDECESSOR_KEY);
+        assert_eq!(
+            *replacement_tree.as_ref().unwrap().value(),
+            PREDECESSOR_VALUE
+        );
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_two_children_right_right_heavy() {
+        //      10
+        //     /  \
+        //    2   12
+        //          \
+        //          15
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let mut root = NodeRef::new(KEY, VALUE);
+
+        const SUCCESSOR_KEY: u32 = 12u32;
+        const SUCCESSOR_VALUE: u32 = 999u32;
+        let right_mut = root.right_mut();
+        *right_mut = Some(NodeRef::new(SUCCESSOR_KEY, SUCCESSOR_VALUE));
+
+        *right_mut.as_mut().unwrap().right_mut() = Some(NodeRef::new(15u32, 89u32));
+        right_mut.as_mut().unwrap().update_height();
+
+        *root.left_mut() = Some(NodeRef::new(2u32, 12u32));
+        root.update_height();
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Nodes with 1 child are replaced with it
+        assert!(replacement_tree.is_some());
+        assert_eq!(*replacement_tree.as_ref().unwrap().key(), SUCCESSOR_KEY);
+        assert_eq!(*replacement_tree.as_ref().unwrap().value(), SUCCESSOR_VALUE);
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_two_children_right_left_heavy() {
+        //      10
+        //     /  \
+        //    2   15
+        //       /
+        //      12
+        const KEY: u32 = 10u32;
+        const VALUE: u32 = 5u32;
+        let mut root = NodeRef::new(KEY, VALUE);
+
+        let right_mut = root.right_mut();
+        *right_mut = Some(NodeRef::new(15u32, 89u32));
+
+        const SUCCESSOR_KEY: u32 = 15u32;
+        const SUCCESSOR_VALUE: u32 = 999u32;
+        *right_mut.as_mut().unwrap().left_mut() =
+            Some(NodeRef::new(SUCCESSOR_KEY, SUCCESSOR_VALUE));
+        right_mut.as_mut().unwrap().update_height();
+
+        *root.left_mut() = Some(NodeRef::new(2u32, 12u32));
+        root.update_height();
+
+        let (replacement_tree, key, value) = root.remove();
+
+        // Nodes with 1 child are replaced with it
+        assert!(replacement_tree.is_some());
+        assert_eq!(*replacement_tree.as_ref().unwrap().key(), SUCCESSOR_KEY);
+        assert_eq!(*replacement_tree.as_ref().unwrap().value(), SUCCESSOR_VALUE);
+
+        assert_eq!(key, KEY);
+        assert_eq!(value, VALUE);
+    }
+
+    #[test]
+    fn replacement_of_value_keeps_tree_in_tact() {
+        //      10
+        //     /  \
+        //    2   15
+
+        const ORIGINAL_VALUE: u32 = 999;
+        const NEW_VALUE: u32 = 1337;
+        let mut root = NodeRef::new(10u32, ORIGINAL_VALUE);
+
+        const KEY_LEFT: u32 = 2u32;
+        const KEY_RIGHT: u32 = 15u32;
+        *root.left_mut() = Some(NodeRef::new(KEY_LEFT, 123u32));
+        *root.right_mut() = Some(NodeRef::new(KEY_RIGHT, 122u32));
+        root.update_height();
+
+        let result = root.replace(NEW_VALUE);
+
+        assert_eq!(result, ORIGINAL_VALUE);
+        assert_eq!(*root.value(), NEW_VALUE);
+        assert!(root.left().is_some());
+        assert!(root.right().is_some());
+        assert_eq!(*root.left().as_ref().unwrap().key(), KEY_LEFT);
+        assert_eq!(*root.right().as_ref().unwrap().key(), KEY_RIGHT);
+    }
+}
