@@ -3,4 +3,15 @@ name = "rbst328"
 version = "0.1.0"
 edition = "2024"
 
+license = "AGPL-3.0-or-later"
+description = "An ordered Map based on a self-balancing AVL Binary Search Tree with serialization support and no dependencies outside std"
+repository = "https://github.com/msaw328/rbst328"
+readme = "README.md"
+keywords = ["data-structures", "binary-search-tree", "map", "collection"]
+categories = ["algorithms", "data-structures"]
+
+exclude = ["examples/", ".github"]
+
+publish = false
+
 [dependencies]
