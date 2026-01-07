@@ -29,7 +29,9 @@ pub(crate) enum Visited {
     Right,
 }
 
-// Implements In-Order iteration over the BST
+/// An iterator which iterates by all the key-value pairs in order.
+///
+/// It yields a shared reference to each key and value assigned to it.
 pub struct BSTMapByrefInorderIter<'a, K: Ord, V> {
     pub(crate) stack: Vec<(&'a NodeRef<K, V>, Visited)>,
 }
@@ -104,6 +106,9 @@ type LeftKVMutRight<'a, K, V> = (
     OptionalKVMut<'a, K, V>,
     OptionalSubtree<'a, K, V>,
 );
+/// An iterator which iterates by all the key-value pairs in order, with mutability over value.
+///
+/// It yields a shared reference to each key and a mutable reference to the value assigned to it.
 pub struct BSTMapByrefInorderIterMut<'a, K: 'a + Ord, V: 'a> {
     pub(crate) stack: Vec<LeftKVMutRight<'a, K, V>>,
 }
@@ -173,7 +178,9 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a mut BSTMap<K, V>> for BSTMapByrefInorderIt
     }
 }
 
-// Implements breadth-first iterator over BSTMap
+/// An iterator which iterates by all the key-value pairs breadth-first.
+///
+/// It yields a shared reference to each key and value assigned to it.
 pub struct BSTMapByrefBreadthfirstIter<'a, K: Ord, V> {
     pub(crate) queue: VecDeque<&'a NodeRef<K, V>>,
 }
@@ -219,7 +226,9 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefBreadthfirstI
         Self::new(value)
     }
 }
-
+/// An iterator which consumes the BSTMap and iterates by all the key-value pairs in order.
+///
+/// It yields a pair of key and value assigned to it directly, passing ownership to the caller.
 pub struct BSTMapConsumingInorderIter<K, V> {
     pub(crate) stack: Vec<NodeRef<K, V>>,
 }
@@ -378,7 +387,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        bst.remove(7); // remove non-leaf node
+        bst.remove(&7); // remove non-leaf node
 
         let collected: Vec<(&u32, &String)> = BSTMapByrefInorderIter::new(&bst).collect();
 
@@ -446,7 +455,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        bst.remove(7); // remove non-leaf node
+        bst.remove(&7); // remove non-leaf node
 
         let bst_len = bst.len();
 
@@ -544,7 +553,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        bst.remove(7); // remove non-leaf node
+        bst.remove(&7); // remove non-leaf node
 
         let saved_len = bst.len();
 
@@ -616,7 +625,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        bst.remove(7); // remove non-leaf node
+        bst.remove(&7); // remove non-leaf node
 
         let collected: Vec<(&u32, &String)> = BSTMapByrefBreadthfirstIter::new(&bst).collect();
 

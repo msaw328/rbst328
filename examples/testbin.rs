@@ -53,13 +53,13 @@ fn main() {
     bst.pretty_print();
 
     let test1 = 15;
-    println!("BST has {} {}", test1, bst.contains(test1));
+    println!("BST has {} {}", test1, bst.contains(&test1));
 
     let test2 = 100;
-    println!("BST has {} {}", test2, bst.contains(test2));
+    println!("BST has {} {}", test2, bst.contains(&test2));
 
-    bst.remove(10);
-    bst.remove(4);
+    bst.remove(&10);
+    bst.remove(&4);
 
     println!("PRINTING TREE AFTER REMOVAL");
     bst.pretty_print();

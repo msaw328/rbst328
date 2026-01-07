@@ -80,7 +80,7 @@ fn main() {
                 }
 
                 let key = parts[1].to_string();
-                if let Some(value) = bst.remove(key) {
+                if let Some(value) = bst.remove(&key) {
                     println!("Ok, old value = {}", value);
                 } else {
                     println!("Err, key not found");

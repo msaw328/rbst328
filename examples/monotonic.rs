@@ -49,7 +49,7 @@ fn main() {
     bst.pretty_print();
 
     for i in [0, 1, 3, 7, 9, 10].iter() {
-        bst.remove(*i);
+        bst.remove(i);
         println!("PRETTY PRINT AFTER REMOVE");
         bst.pretty_print();
     }

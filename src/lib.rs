@@ -19,7 +19,8 @@ use std::{
     collections::VecDeque,
 };
 
-mod iter;
+/// Implementation of various iterators over the BSTMap
+pub mod iter;
 use crate::{
     iter::{
         BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapByrefInorderIterMut,
@@ -33,58 +34,25 @@ mod debug;
 mod node;
 use crate::node::NullableNodeRef;
 
-/*
-// Shorthand for a referece to a Box'ed node that may or may not be there
-type NodeRef<K, V> = Option<Box<Node<K, V>>>;
-
-struct Node<K, V> {
-    left: NodeRef<K, V>,
-    right: NodeRef<K, V>,
-    height: i32,
-    key: K,
-    value: V,
-}
-
-impl<K: Ord, V> Node<K, V> {
-    pub fn new(key: K, value: V) -> Self {
-        Self {
-            left: None,
-            right: None,
-            height: 1,
-            value,
-            key,
-        }
-    }
-
-    pub fn left_height(&self) -> i32 {
-        match &self.left {
-            Some(node) => node.height,
-            None => 0,
-        }
-    }
-
-    pub fn right_height(&self) -> i32 {
-        match &self.right {
-            Some(node) => node.height,
-            None => 0,
-        }
-    }
-
-    pub fn balance(&self) -> i32 {
-        self.right_height() - self.left_height()
-    }
-
-    pub fn update_height(&mut self) {
-        self.height = 1 + self.left_height().max(self.right_height())
-    }
-}*/
-
+/// Ordered Map based on a self-balancing AVL Binary Search Tree.
 pub struct BSTMap<K: Ord, V> {
+    /// Possibly null (None) reference to the root Node.
     head: NullableNodeRef<K, V>,
+    /// Number of Nodes (elements) in the tree.
     length: usize,
 }
 
 impl<K: Ord, V> BSTMap<K, V> {
+    /// Creates a new, empty BSTMap.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rbst328::BSTMap;
+    ///
+    /// // You most likely want to keep it mut to modify it
+    /// let mut map: BSTMap<u32, String> = BSTMap::new();
+    /// ```
     pub fn new() -> Self {
         Self {
             head: None,
@@ -92,20 +60,44 @@ impl<K: Ord, V> BSTMap<K, V> {
         }
     }
 
+    /// Returns current length of the BSTMap (number of elements).
     pub fn len(&self) -> usize {
         self.length
     }
 
+    /// Returns `true` if BSTMap is empty, `false` otherwise.
     pub fn is_empty(&self) -> bool {
         self.length == 0
     }
 
+    /// Drops all data nodes from the BSTMap, making it empty afterwards.
     pub fn clear(&mut self) {
         self.head = None;
         self.length = 0;
     }
 
-    pub fn insert(&mut self, key_insert: K, value_insert: V) -> Option<V> {
+    /// Inserts a new value into the BSTMap, indexed by the given key.
+    /// If the key already exists, the value is overwritten and no new data nodes are allocated.
+    ///
+    /// If the value was overwritten, old value will be returned by the call, encapsulated in `Some`.
+    /// Otherwise, `None` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rbst328::BSTMap;
+    ///
+    /// let mut map: BSTMap<u32, String> = BSTMap::new();
+    /// map.insert(32, "Hello!".to_string());
+    ///
+    /// let old_value1 = map.insert(90, "World!".to_string());
+    /// let old_value2 = map.insert(90, "World but different!".to_string());
+    ///
+    /// assert!(old_value1.is_none());
+    /// assert!(old_value2.is_some());
+    /// assert_eq!(*old_value2.unwrap(), "World!".to_string());
+    /// ```
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         #[derive(PartialEq)]
         enum Subtree {
             Left,
@@ -127,12 +119,11 @@ impl<K: Ord, V> BSTMap<K, V> {
             // if next_candidate is equal to key, it means we're replacing it's value - no stack pushing needed
             // if subtree is to be explored, push current candidate node and subtree left/right info to stack
             let next_candidate_inner = next_candidate.as_mut().unwrap();
-            let (next_candidate_replacement, subtree) =
-                match next_candidate_inner.key().cmp(&key_insert) {
-                    Ordering::Less => (next_candidate_inner.right_mut().take(), Subtree::Right),
-                    Ordering::Greater => (next_candidate_inner.left_mut().take(), Subtree::Left),
-                    Ordering::Equal => break,
-                };
+            let (next_candidate_replacement, subtree) = match next_candidate_inner.key().cmp(&key) {
+                Ordering::Less => (next_candidate_inner.right_mut().take(), Subtree::Right),
+                Ordering::Greater => (next_candidate_inner.left_mut().take(), Subtree::Left),
+                Ordering::Equal => break,
+            };
 
             // Push processed node on the stack
             node_stack.push((next_candidate.unwrap(), subtree));
@@ -147,9 +138,9 @@ impl<K: Ord, V> BSTMap<K, V> {
         // If the Node to be replaced is Some, replace it and dont change length
         // if the Node is None, insert a new node in its place and change length
         let return_value = if let Some(inner_node) = node_to_be_replaced.as_mut() {
-            Some(inner_node.replace(value_insert))
+            Some(inner_node.replace(value))
         } else {
-            node_to_be_replaced = Some(NodeRef::new(key_insert, value_insert));
+            node_to_be_replaced = Some(NodeRef::new(key, value));
             self.length += 1;
             None
         };
@@ -177,12 +168,25 @@ impl<K: Ord, V> BSTMap<K, V> {
         return_value
     }
 
-    pub fn contains(&self, key: K) -> bool {
+    /// Returns `true` if a given key exists in the BSTMap, `false` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rbst328::BSTMap;
+    ///
+    /// let mut map: BSTMap<u32, String> = BSTMap::new();
+    /// map.insert(32, "Hello!".to_string());
+    ///
+    /// assert!(map.contains(&32));
+    /// assert!(!map.contains(&999));
+    /// ```
+    pub fn contains(&self, key: &K) -> bool {
         let mut current_node = &self.head;
 
         while let Some(inner) = current_node.as_ref() {
             // unwrap is safe inside the loop, since current_node is Some
-            current_node = match inner.key().cmp(&key) {
+            current_node = match inner.key().cmp(key) {
                 Ordering::Less => inner.right(),
                 Ordering::Greater => inner.left(),
                 Ordering::Equal => return true,
@@ -192,6 +196,25 @@ impl<K: Ord, V> BSTMap<K, V> {
         false
     }
 
+    /// Returns a shared reference to the value associated with given key inside the BSTMap, encapsulated by `Some`.
+    /// If the BSTMap does not contain given key, returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rbst328::BSTMap;
+    ///
+    /// let mut map: BSTMap<u32, String> = BSTMap::new();
+    /// map.insert(32, "Hello!".to_string());
+    ///
+    /// let nonexistent = map.get(&999);
+    /// let existent = map.get(&32);
+    ///
+    /// assert!(existent.is_some());
+    /// assert_eq!(*existent.unwrap(), "Hello!".to_string());
+    ///
+    /// assert!(nonexistent.is_none());
+    /// ```
     pub fn get(&self, key: &K) -> Option<&V> {
         let mut current_node = &self.head;
 
@@ -205,7 +228,28 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         None
     }
-
+    /// Returns a mutable reference to the value associated with given key inside the BSTMap, encapsulated by `Some`.
+    /// If the BSTMap does not contain given key, returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rbst328::BSTMap;
+    ///
+    /// let mut map: BSTMap<u32, String> = BSTMap::new();
+    /// map.insert(32, "Hello!".to_string());
+    ///
+    /// let nonexistent = map.get_mut(&999);
+    /// assert!(nonexistent.is_none());
+    ///
+    /// let existent = map.get_mut(&32);
+    /// assert!(existent.is_some());
+    ///
+    /// let val_reference = existent.unwrap();
+    /// val_reference.insert(0, 'T');
+    ///
+    /// assert_eq!(*map.get(&32).unwrap(), "THello!".to_string());
+    /// ```
     pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         let mut current_node = &mut self.head;
 
@@ -219,8 +263,27 @@ impl<K: Ord, V> BSTMap<K, V> {
 
         None
     }
-
-    pub fn remove(&mut self, key_remove: K) -> Option<V> {
+    /// Removes the value at the given key from the BSTMap and returns it encapsulated in `Some`.
+    /// If given key does not exist in the BSTMap, the method does nothing and returns `None`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rbst328::BSTMap;
+    ///
+    /// let mut map: BSTMap<u32, String> = BSTMap::new();
+    /// map.insert(32, "Hello!".to_string());
+    ///
+    /// let old_value1 = map.remove(&90);
+    /// let old_value2 = map.remove(&32);
+    /// let old_value3 = map.remove(&32);
+    ///
+    /// assert!(old_value1.is_none());
+    /// assert!(old_value2.is_some());
+    /// assert_eq!(old_value2.unwrap(), "Hello!".to_string());
+    /// assert!(old_value3.is_none());
+    /// ```
+    pub fn remove(&mut self, key: &K) -> Option<V> {
         #[derive(PartialEq)]
         enum Subtree {
             Left,
@@ -242,12 +305,11 @@ impl<K: Ord, V> BSTMap<K, V> {
             // if next_candidate is equal to key, it means we're replacing it's value - no stack pushing needed
             // if subtree is to be explored, push current candidate node and subtree left/right info to stack
             let next_candidate_inner = next_candidate.as_mut().unwrap();
-            let (next_candidate_replacement, subtree) =
-                match next_candidate_inner.key().cmp(&key_remove) {
-                    Ordering::Less => (next_candidate_inner.right_mut().take(), Subtree::Right),
-                    Ordering::Greater => (next_candidate_inner.left_mut().take(), Subtree::Left),
-                    Ordering::Equal => break,
-                };
+            let (next_candidate_replacement, subtree) = match next_candidate_inner.key().cmp(key) {
+                Ordering::Less => (next_candidate_inner.right_mut().take(), Subtree::Right),
+                Ordering::Greater => (next_candidate_inner.left_mut().take(), Subtree::Left),
+                Ordering::Equal => break,
+            };
 
             // Push processed node on the stack
             node_stack.push((next_candidate.unwrap(), subtree));
@@ -290,39 +352,49 @@ impl<K: Ord, V> BSTMap<K, V> {
         return_value
     }
 
+    /// Returns an iterator which iterates by all the key-value pairs in order.
+    /// It yields a shared reference to each key and value assigned to it.
     pub fn iter_inorder(&self) -> BSTMapByrefInorderIter<'_, K, V> {
         BSTMapByrefInorderIter::new(self)
     }
 
+    /// Returns an iterator which iterates by all the key-value pairs in order.
+    /// It yields a shared reference to each key and a mutable reference to the value assigned to it.
     pub fn iter_inorder_mut(&mut self) -> BSTMapByrefInorderIterMut<'_, K, V> {
         BSTMapByrefInorderIterMut::new(self)
     }
 
+    /// Consumes the BSTMap and returns an iterator which iterates by all the key-value pairs in order.
+    /// It yields a pair of key and value assigned to it directly, passing ownership to the caller.
     pub fn into_iter_inorder(self) -> BSTMapConsumingInorderIter<K, V> {
         BSTMapConsumingInorderIter::new(self)
     }
 
+    /// Returns an iterator which iterates by all the key-value pairs breadth-first.
+    /// It yields a shared reference to each key and value assigned to it.
     pub fn iter_breadthfirst(&self) -> BSTMapByrefBreadthfirstIter<'_, K, V> {
         BSTMapByrefBreadthfirstIter::new(self)
     }
 
+    /// Returns the default iterator.
     pub fn iter(&self) -> BSTMapByrefInorderIter<'_, K, V> {
         self.iter_inorder()
     }
 
+    /// Returns the default mutable iterator.
     pub fn iter_mut(&mut self) -> BSTMapByrefInorderIterMut<'_, K, V> {
         self.iter_inorder_mut()
     }
 }
 
+/// By default, create an empty BSTMap.
 impl<K: Ord, V> Default for BSTMap<K, V> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-// In order to avoid recursive calls to drop
-// provide an iterative version
+/// In order to avoid recursive calls to drop provide an iterative version.
 impl<K: Ord, V> Drop for BSTMap<K, V> {
     fn drop(&mut self) {
         if self.head.is_none() {
@@ -401,7 +473,7 @@ mod tests {
         const VALUE: &str = "test";
         bst.insert(KEY, VALUE.to_string());
 
-        bst.remove(KEY);
+        bst.remove(&KEY);
 
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
@@ -413,7 +485,7 @@ mod tests {
 
         const KEY: u32 = 999;
 
-        assert!(!bst.contains(KEY));
+        assert!(!bst.contains(&KEY));
         assert!(bst.get(&KEY).is_none());
         assert!(bst.get_mut(&KEY).is_none());
     }
@@ -426,7 +498,7 @@ mod tests {
         const VALUE: &str = "something";
         bst.insert(KEY, VALUE.to_string());
 
-        assert!(bst.contains(KEY));
+        assert!(bst.contains(&KEY));
         assert!(bst.get(&KEY).is_some());
         assert!(bst.get_mut(&KEY).is_some());
         assert_eq!(*bst.get(&KEY).unwrap(), VALUE.to_string());
@@ -456,7 +528,7 @@ mod tests {
         let mut bst = BSTMap::<u32, String>::new();
 
         const KEY: u32 = 1;
-        let return_val = bst.remove(KEY);
+        let return_val = bst.remove(&KEY);
 
         assert!(return_val.is_none());
     }
@@ -469,7 +541,7 @@ mod tests {
         const VALUE: &str = "hello";
         bst.insert(KEY, VALUE.to_string());
 
-        let return_val = bst.remove(KEY);
+        let return_val = bst.remove(&KEY);
 
         assert!(return_val.is_some());
         assert_eq!(return_val.unwrap(), VALUE.to_string());
@@ -510,7 +582,7 @@ mod tests {
         //   /      \
         //  2       20
         // test removal of parent with left child
-        let mut return_val = bst.remove(5);
+        let mut return_val = bst.remove(&5);
 
         assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);
         assert!(return_val.is_some());
@@ -523,14 +595,14 @@ mod tests {
         assert_eq!(*child_node.unwrap(), "leaf_node_child".to_string());
 
         // test removal of parent with right child
-        return_val = bst.remove(15);
+        return_val = bst.remove(&15);
 
         assert_eq!(bst.len(), TEST_INSERTIONS.len() - 2);
         assert!(return_val.is_some());
         assert_eq!(return_val.unwrap(), "bye".to_string());
 
         // child should remain accessible
-        assert!(bst.contains(20));
+        assert!(bst.contains(&20));
         child_node = bst.get(&20);
 
         assert!(child_node.is_some());
@@ -570,7 +642,7 @@ mod tests {
         //  2   13  20
         //     /  \
         //    12  14
-        let return_val = bst.remove(15);
+        let return_val = bst.remove(&15);
 
         assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);
         assert!(return_val.is_some());
@@ -578,7 +650,7 @@ mod tests {
 
         // children should remain accessible
         for (k, v) in &CHILDREN_TO_CHECK {
-            assert!(bst.contains(*k));
+            assert!(bst.contains(k));
             let child_node = bst.get(k);
 
             assert!(child_node.is_some());
@@ -627,7 +699,7 @@ mod tests {
         //    12 14 19 21
         //         /
         //        17
-        let return_val = bst.remove(15);
+        let return_val = bst.remove(&15);
 
         assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);
         assert!(return_val.is_some());
@@ -635,7 +707,7 @@ mod tests {
 
         // children should remain accessible
         for (k, v) in &CHILDREN_TO_CHECK {
-            assert!(bst.contains(*k));
+            assert!(bst.contains(k));
             let child_node = bst.get(k);
 
             assert!(child_node.is_some());
