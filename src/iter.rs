@@ -65,7 +65,7 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
 
                 Visited::Left => {
                     *visited = Visited::Node;
-                    return Some((current_node.key(), current_node.value()));
+                    return Some(current_node.kv());
                 }
 
                 Visited::Node => {
@@ -116,15 +116,9 @@ impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
             Some(inner_node) => {
                 let mut s = Vec::with_capacity(bst_len);
 
-                let NodeData {
-                    left,
-                    right,
-                    key,
-                    value,
-                    ..
-                } = inner_node.as_mut();
+                let (left, right, k, v) = inner_node.split_mut();
 
-                s.push((left.as_mut(), Some((&*key, value)), right.as_mut()));
+                s.push((left.as_mut(), Some((k, v)), right.as_mut()));
                 s
             }
         };
@@ -140,17 +134,10 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
             let (left_ref, current_kv, right_ref) = tuple;
 
             if let Some(inner_node) = left_ref.take() {
-                let NodeData {
-                    left,
-                    right,
-                    key,
-                    value,
-                    ..
-                } = inner_node.as_mut();
+                let (left, right, k, v) = inner_node.split_mut();
 
                 self.stack
-                    .push((left.as_mut(), Some((&*key, value)), right.as_mut()));
-
+                    .push((left.as_mut(), Some((k, v)), right.as_mut()));
                 continue;
             }
 
@@ -275,9 +262,7 @@ impl<K: Ord, V> Iterator for BSTMapConsumingInorderIter<K, V> {
                     self.stack.push(saved_right);
                 }
 
-                let NodeData { key, value, .. } = current_node.consume();
-
-                return Some((key, value));
+                return Some(current_node.consume_kv());
             }
         }
 

@@ -66,23 +66,103 @@ impl<K, V> NodeRef<K, V> {
         (&self.0.key, &self.0.value)
     }
 
+    /* unused
     pub fn kv_mut(&mut self) -> (&K, &mut V) {
         (&self.0.key, &mut self.0.value)
     }
+    */
 
-    pub fn as_ref(&mut self) -> &NodeData<K, V> {
-        &self.0
+    /* unused
+    pub fn split(&self) -> (&NullableNodeRef<K, V>, &NullableNodeRef<K, V>, &K, &V) {
+        let NodeData {
+            left,
+            right,
+            key,
+            value,
+            ..
+        } = self.0.as_ref();
+
+        (left, right, key, value)
+    }
+    */
+
+    pub fn split_mut(
+        &mut self,
+    ) -> (
+        &mut NullableNodeRef<K, V>,
+        &mut NullableNodeRef<K, V>,
+        &K,
+        &mut V,
+    ) {
+        let NodeData {
+            left,
+            right,
+            key,
+            value,
+            ..
+        } = self.0.as_mut();
+
+        (left, right, key, value)
     }
 
     pub fn as_mut(&mut self) -> &mut NodeData<K, V> {
         &mut self.0
     }
 
-    // Destroys the noderef along with the nodedata
-    // Returns the value that was contained within
-    // useful for removal
-    pub fn consume(self) -> NodeData<K, V> {
+    // Consumes self to return NodeData contained within
+    // used for removal
+    fn consume(self) -> NodeData<K, V> {
         *self.0
+    }
+
+    // Consumes self to return (K, V)
+    pub fn consume_kv(self) -> (K, V) {
+        let data = self.consume();
+        (data.key, data.value)
+    }
+
+    // Destroys the noderef along with the nodedata
+    // Returns Optional subtree to replace that node in the tree
+    // (might be None if node should just stay empty)
+    // also returns Key and Value from deleted node
+    pub fn remove(mut self) -> (Option<NodeRef<K, V>>, K, V) {
+        // Case 1. Leaf node - just remove
+        if self.left().is_none() && self.right().is_none() {
+            let NodeData { key, value, .. } = self.consume();
+
+            return (None, key, value);
+        }
+
+        // at this point we're guaranteed that at least one child exists
+
+        // Case 2. One child - replace with the child that is not None
+        if self.right().is_none() {
+            let NodeData {
+                key, value, left, ..
+            } = self.consume();
+
+            return (left, key, value);
+        }
+
+        if self.left().is_none() {
+            let NodeData {
+                key, value, right, ..
+            } = self.consume();
+
+            return (right, key, value);
+        }
+
+        // Case 3a and b - replace the child with successor or predecessor
+        // replace with node from heavier subtree, so it becomes more balanced
+        // instead of less
+        let old_node = if self.balance() < 0 {
+            self.replace_with_subtree_predecessor()
+        } else {
+            self.replace_with_subtree_successor()
+        }
+        .consume();
+
+        (Some(self), old_node.key, old_node.value)
     }
 
     // AVL height of the left subtree
@@ -186,9 +266,9 @@ impl<K, V> NodeRef<K, V> {
                 .as_mut()
                 .expect("Node with AVL balance -2 has empty left child - THIS SHOULD NEVER HAPPEN");
 
-            // If left child is right-heavy or balanced:
+            // If left child is right-heavy:
             // Rotate left child to the left first
-            if left_child.balance() >= 0 {
+            if left_child.balance() > 0 {
                 // The left child has to have a right child
                 // (because it has to have ANY child, and it is not left-heavy)
                 if left_child.right().is_none() {
@@ -208,9 +288,9 @@ impl<K, V> NodeRef<K, V> {
                 .as_mut()
                 .expect("Node with AVL balance 2 has empty right child - THIS SHOULD NEVER HAPPEN");
 
-            // If right child is left-heavy or balanced:
+            // If right child is left-heavy:
             // Rotate right child to the right first
-            if right_child.balance() <= 0 {
+            if right_child.balance() < 0 {
                 // The right child has to have a left child
                 // (because it has to have ANY child, and it is not right-heavy)
                 if right_child.left().is_none() {
@@ -228,10 +308,11 @@ impl<K, V> NodeRef<K, V> {
     }
 
     // Replaces self with successor from children of this node
+    // returns the old self
     // used during removal
     // this is the leftmost node of the right subtree
     // Soundness assumption: right subtree exists
-    pub fn replace_with_subtree_successor(&mut self) -> NodeRef<K, V> {
+    fn replace_with_subtree_successor(&mut self) -> NodeRef<K, V> {
         if self.right().is_none() {
             panic!("Right subtree is empty when taking subtree successor");
         }
@@ -289,10 +370,11 @@ impl<K, V> NodeRef<K, V> {
     }
 
     // Replaces self with predecessor from children of this node
+    // returns the old self
     // used during removal
     // this is the rightmost node of the left subtree
     // Soundness assumption: left subtree exists
-    pub fn replace_with_subtree_predecessor(&mut self) -> NodeRef<K, V> {
+    fn replace_with_subtree_predecessor(&mut self) -> NodeRef<K, V> {
         if self.left().is_none() {
             panic!("Left subtree is empty when taking subtree predecessor");
         }
@@ -347,6 +429,13 @@ impl<K, V> NodeRef<K, V> {
         let old_node = std::mem::replace(self, taken_successor);
         self.balance_subtree();
         old_node
+    }
+
+    // replaces just the value of the node
+    // useful for insertions
+    // returns old value
+    pub fn replace(&mut self, value: V) -> V {
+        std::mem::replace(self.value_mut(), value)
     }
 }
 
