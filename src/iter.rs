@@ -16,9 +16,8 @@
 
 use std::collections::VecDeque;
 
-use crate::node::NodeData;
-
-use super::{BSTMap, NodeRef};
+use crate::map::BSTMap;
+use crate::node::SubtreeAnchor;
 
 // what parts of the node have been visited - nothing, left subtree, node itself, right subtree
 // used by BSTMapByrefInorderIterator to add data about visited nodes to otherwise immutable tree
@@ -33,7 +32,7 @@ pub(crate) enum Visited {
 ///
 /// It yields a shared reference to each key and value assigned to it.
 pub struct BSTMapByrefInorderIter<'a, K: Ord, V> {
-    pub(crate) stack: Vec<(&'a NodeRef<K, V>, Visited)>,
+    stack: Vec<(&'a SubtreeAnchor<K, V>, Visited)>,
 }
 
 impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
@@ -99,7 +98,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefInorderIter<'
 // OptionalSubtree - owned Option with &mut to a Node<K, V> - Some if unexplored, None if empty or explored
 // OptionalKVMut - a tuple of shared reference to key type and mutable reference to value type
 // LeftKVMutRight - a tuple containing, in order: optional left subtree to be explored, KV references, right subtree to be explored
-type OptionalSubtree<'a, K, V> = Option<&'a mut NodeRef<K, V>>;
+type OptionalSubtree<'a, K, V> = Option<&'a mut SubtreeAnchor<K, V>>;
 type OptionalKVMut<'a, K, V> = Option<(&'a K, &'a mut V)>;
 type LeftKVMutRight<'a, K, V> = (
     OptionalSubtree<'a, K, V>,
@@ -151,16 +150,10 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
             }
 
             if let Some(inner_node) = right_ref.take() {
-                let NodeData {
-                    left,
-                    right,
-                    key,
-                    value,
-                    ..
-                } = inner_node.as_mut();
+                let (left, right, key, value) = inner_node.split_mut();
 
                 self.stack
-                    .push((left.as_mut(), Some((&*key, value)), right.as_mut()));
+                    .push((left.as_mut(), Some((key, value)), right.as_mut()));
 
                 continue;
             }
@@ -182,7 +175,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a mut BSTMap<K, V>> for BSTMapByrefInorderIt
 ///
 /// It yields a shared reference to each key and value assigned to it.
 pub struct BSTMapByrefBreadthfirstIter<'a, K: Ord, V> {
-    pub(crate) queue: VecDeque<&'a NodeRef<K, V>>,
+    pub(crate) queue: VecDeque<&'a SubtreeAnchor<K, V>>,
 }
 
 impl<'a, K: Ord, V> BSTMapByrefBreadthfirstIter<'a, K, V> {
@@ -230,7 +223,7 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefBreadthfirstI
 ///
 /// It yields a pair of key and value assigned to it directly, passing ownership to the caller.
 pub struct BSTMapConsumingInorderIter<K, V> {
-    pub(crate) stack: Vec<NodeRef<K, V>>,
+    pub(crate) stack: Vec<SubtreeAnchor<K, V>>,
 }
 
 impl<K: Ord, V> BSTMapConsumingInorderIter<K, V> {

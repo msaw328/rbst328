@@ -19,7 +19,7 @@
 
 use std::fmt::Display;
 
-use super::BSTMap;
+use crate::map::BSTMap;
 
 #[doc(hidden)]
 impl<K: Display + Ord, V: Display> BSTMap<K, V> {

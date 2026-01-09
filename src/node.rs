@@ -16,15 +16,30 @@
 
 use std::fmt::Display;
 
-// A reference to a Node/subtree which may be empty
-pub type NullableNodeRef<K, V> = Option<NodeRef<K, V>>;
-
-// A reference to a Node/subtree which is guaranteed to be present
+/// Data contained by the node.
+///
+/// This is a plain data structure, that is meant to be Box'ed and handled via a SubtreeAnchor.
 #[derive(Debug)]
-pub struct NodeRef<K, V>(Box<NodeData<K, V>>);
+struct NodeData<K, V> {
+    pub left: NullableSubtreeAnchor<K, V>,
+    pub right: NullableSubtreeAnchor<K, V>,
+    pub height: i32,
+    pub key: K,
+    pub value: V,
+}
 
-impl<K, V> NodeRef<K, V> {
-    pub fn new(key: K, value: V) -> Self {
+/// An anchor point for a subtree, which may be None.
+pub type NullableSubtreeAnchor<K, V> = Option<SubtreeAnchor<K, V>>;
+
+/// An anchor point for a Subtree (which may be a leaf node with no children).
+///
+/// Contains a Box reference to the NodeData for the root node of the subtree.
+#[derive(Debug)]
+pub(crate) struct SubtreeAnchor<K, V>(Box<NodeData<K, V>>);
+
+impl<K, V> SubtreeAnchor<K, V> {
+    /// Creates a new SubtreeAnchor as a single leaf node.
+    pub fn new_leaf(key: K, value: V) -> Self {
         Self(Box::new(NodeData {
             left: None,
             right: None,
@@ -34,63 +49,55 @@ impl<K, V> NodeRef<K, V> {
         }))
     }
 
-    pub fn left(&self) -> &NullableNodeRef<K, V> {
+    /// Returns a shared reference to the left NullableSubtreeAnchor.
+    pub fn left(&self) -> &NullableSubtreeAnchor<K, V> {
         &self.0.left
     }
 
-    pub fn right(&self) -> &NullableNodeRef<K, V> {
+    /// Returns a shared reference to the right NullableSubtreeAnchor.
+    pub fn right(&self) -> &NullableSubtreeAnchor<K, V> {
         &self.0.right
     }
 
-    pub fn left_mut(&mut self) -> &mut NullableNodeRef<K, V> {
+    /// Returns a mutable reference to the left NullableSubtreeAnchor.
+    pub fn left_mut(&mut self) -> &mut NullableSubtreeAnchor<K, V> {
         &mut self.0.left
     }
 
-    pub fn right_mut(&mut self) -> &mut NullableNodeRef<K, V> {
+    /// Returns a mutable reference to the right NullableSubtreeAnchor.
+    pub fn right_mut(&mut self) -> &mut NullableSubtreeAnchor<K, V> {
         &mut self.0.right
     }
 
+    /// Returns a shared reference to the key.
+    ///
+    /// There is no function returning a mutable reference to the key.
+    /// Such a function would pose danger to validity of the structure of the tree.
     pub fn key(&self) -> &K {
         &self.0.key
     }
 
+    /// Returns a shared reference to the value.
     pub fn value(&self) -> &V {
         &self.0.value
     }
 
+    /// Returns a mutable reference to the value.
     pub fn value_mut(&mut self) -> &mut V {
         &mut self.0.value
     }
 
+    /// Returns a tuple of shared references to key and value.
     pub fn kv(&self) -> (&K, &V) {
         (&self.0.key, &self.0.value)
     }
 
-    /* unused
-    pub fn kv_mut(&mut self) -> (&K, &mut V) {
-        (&self.0.key, &mut self.0.value)
-    }
-    */
-
-    /* unused
-    pub fn split(&self) -> (&NullableNodeRef<K, V>, &NullableNodeRef<K, V>, &K, &V) {
-        let NodeData {
-            left,
-            right,
-            key,
-            value,
-            ..
-        } = self.0.as_ref();
-
-        (left, right, key, value)
-    }
-    */
-
+    /// Returns a tuple of mutable references to left, right and value plus a shared reference to key.
     pub fn split_mut(
         &mut self,
     ) -> (
-        &mut NullableNodeRef<K, V>,
-        &mut NullableNodeRef<K, V>,
+        &mut NullableSubtreeAnchor<K, V>,
+        &mut NullableSubtreeAnchor<K, V>,
         &K,
         &mut V,
     ) {
@@ -105,67 +112,52 @@ impl<K, V> NodeRef<K, V> {
         (left, right, key, value)
     }
 
-    pub fn as_mut(&mut self) -> &mut NodeData<K, V> {
-        &mut self.0
-    }
-
-    // Consumes self to return NodeData contained within
-    // used for removal
+    /// Consumes self to return NodeData contained within.
+    /// Used for removal.
     fn consume(self) -> NodeData<K, V> {
         *self.0
     }
 
-    // Consumes self to return (K, V)
+    /// Consumes self to return (K, V).
     pub fn consume_kv(self) -> (K, V) {
         let data = self.consume();
         (data.key, data.value)
     }
 
-    // Destroys the noderef along with the nodedata
-    // Returns Optional subtree to replace that node in the tree
-    // (might be None if node should just stay empty)
-    // also returns Key and Value from deleted node
-    pub fn remove(mut self) -> (Option<NodeRef<K, V>>, K, V) {
+    /// Helper method used during removal of a Node.
+    ///
+    /// It mutates self, detaching the Left and Right subtrees from the Root.
+    /// Afterwards, it modifies both subtrees in accordance with AVL BST rules to create the replacement subtree.
+    /// It returns a NullableNodeRef which should replace this subtree in the larger BST structure.
+    /// Returned subtree may be None if nothing should replace the removed subtree (e.g. when a leaf node is removed).
+    pub fn remove(&mut self) -> NullableSubtreeAnchor<K, V> {
         // Case 1. Leaf node - just remove
         if self.left().is_none() && self.right().is_none() {
-            let NodeData { key, value, .. } = self.consume();
-
-            return (None, key, value);
+            return None;
         }
 
         // at this point we're guaranteed that at least one child exists
 
         // Case 2. One child - replace with the child that is not None
         if self.right().is_none() {
-            let NodeData {
-                key, value, left, ..
-            } = self.consume();
-
-            return (left, key, value);
+            return self.left_mut().take();
         }
 
         if self.left().is_none() {
-            let NodeData {
-                key, value, right, ..
-            } = self.consume();
-
-            return (right, key, value);
+            return self.right_mut().take();
         }
 
         // Case 3a and b - replace the child with successor or predecessor
         // replace with node from heavier subtree, so it becomes more balanced
         // instead of less
-        let old_node = if self.balance() < 0 {
+        Some(if self.balance() < 0 {
             self.replace_with_subtree_predecessor()
         } else {
             self.replace_with_subtree_successor()
-        }
-        .consume();
-
-        (Some(self), old_node.key, old_node.value)
+        })
     }
 
-    // AVL height of the left subtree
+    /// Returns AVL height of the left subtree.
     fn left_height(&self) -> i32 {
         match &self.0.left {
             Some(node) => node.0.height,
@@ -173,7 +165,7 @@ impl<K, V> NodeRef<K, V> {
         }
     }
 
-    // AVL height of the right subtree
+    /// Returns AVL height of the right subtree.
     fn right_height(&self) -> i32 {
         match &self.0.right {
             Some(node) => node.0.height,
@@ -181,19 +173,19 @@ impl<K, V> NodeRef<K, V> {
         }
     }
 
-    // Returns AVL balance factor for given node
+    /// Returns AVL balance factor for the root of the subtree.
     pub fn balance(&self) -> i32 {
         self.right_height() - self.left_height()
     }
 
-    // Updates height of this node based on it's children
-    // Soundness assumption: Both children have correct heights/are empty
+    /// Updates height of this node based on it's children heights.
+    /// Soundness assumption: Both children have correct heights/are empty.
     fn update_height(&mut self) {
         self.0.height = 1 + self.left_height().max(self.right_height())
     }
 
-    // Performs an AVL single rotation to the right
-    // Soundness assumption: self.left() is not None
+    /// Performs an AVL single rotation to the right.
+    /// Soundness assumption: self.left() is not None.
     fn rotate_right(&mut self) {
         let left_child_ref = self.left_mut();
 
@@ -214,12 +206,12 @@ impl<K, V> NodeRef<K, V> {
 
         // Assume: Tree was had valid AVL heights before
         // Both subtrees of self have valid AVL heights
-        *self.right_mut() = Some(NodeRef(old_self));
+        *self.right_mut() = Some(SubtreeAnchor(old_self));
         self.update_height();
     }
 
-    // Performs an AVL single rotation to the left
-    // Soundness assumption: self.right() is not None
+    /// Performs an AVL single rotation to the left.
+    /// Soundness assumption: self.right() is not None.
     fn rotate_left(&mut self) {
         let right_child_ref = self.right_mut();
 
@@ -240,16 +232,13 @@ impl<K, V> NodeRef<K, V> {
 
         // Assume: Tree was had valid AVL heights before
         // Both subtrees of self have valid AVL heights
-        *self.left_mut() = Some(NodeRef(old_self));
+        *self.left_mut() = Some(SubtreeAnchor(old_self));
         self.update_height();
     }
 
-    // Updates height of the tree based on it's children
-    // and if needed performs AVL rotations to balance the subtree
-    // rooted in this node
-    //
-    // Soundness assumption: Both children are either empty or
-    // had balance_subtree() called on them before this call
+    /// Updates height of the subtree based on it's children and performs AVL rotations if needed.
+    ///
+    /// Soundness assumption: Both children are either empty or have valid heights.
     pub fn balance_subtree(&mut self) {
         self.update_height();
 
@@ -307,32 +296,37 @@ impl<K, V> NodeRef<K, V> {
         self.update_height();
     }
 
-    // Replaces self with successor from children of this node
-    // returns the old self
-    // used during removal
-    // this is the leftmost node of the right subtree
-    // Soundness assumption: right subtree exists
-    fn replace_with_subtree_successor(&mut self) -> NodeRef<K, V> {
+    /// Remove self from the subtree and return a new Subtree rooted at the successor.
+    ///
+    /// Used during removal. The returned subtree should replace the original root in the bigger tree structure.
+    /// After the function finishes, self points to the same node, but is detached from the rest of the tree.
+    /// Returned new subtree is valid in terms of AVL.
+    /// Successor is the leftmost node of the right subtree.
+    /// Soundness assumption: right subtree exists
+    fn replace_with_subtree_successor(&mut self) -> SubtreeAnchor<K, V> {
         if self.right().is_none() {
             panic!("Right subtree is empty when taking subtree successor");
         }
 
+        // Unwrap safe due to if above
         let mut right_taken = self.right_mut().take().unwrap();
 
         // If right child has no left children, it is the immediate successor - no stack needed
         if right_taken.left().is_none() {
             let saved_left = self.left_mut().take();
 
+            // Save left subtree of the removed root in the successor
             *right_taken.left_mut() = saved_left;
 
-            let old_noderef = std::mem::replace(self, right_taken);
+            // Restore AVL balance after modifications.
+            self.balance_subtree();
+            right_taken.balance_subtree();
 
-            self.update_height();
-
-            return old_noderef;
+            return right_taken;
         }
 
         // Right child has left subtree - descend
+        // unwrap safe due to if above
         let mut next_node = right_taken.left_mut().take().unwrap();
         let mut node_stack = Vec::from([right_taken]);
 
@@ -344,7 +338,8 @@ impl<K, V> NodeRef<K, V> {
             next_node = next_left;
         }
 
-        // Move the successor node, and save it's right subtree
+        // Remove the successor from the subtree and save it's right subtree.
+        // Variable is named left_subtree, since it will be attached to successors parent on the left.
         let mut taken_successor = next_node;
         let mut left_subtree = taken_successor.right_mut().take();
 
@@ -360,41 +355,46 @@ impl<K, V> NodeRef<K, V> {
             left_subtree = Some(parent_node);
         }
 
-        // In the end, replace self with successor
+        // In the end, attach self's original subtrees to the successor.
+        // "left_subtree" becomes the right subtree, since it was rebuilt from successors ancestors.
         *taken_successor.left_mut() = self.left_mut().take();
         *taken_successor.right_mut() = left_subtree;
 
-        let old_node = std::mem::replace(self, taken_successor);
-        self.balance_subtree();
-        old_node
+        // Return the successor, as it is a new root for the subtree
+        taken_successor
     }
 
-    // Replaces self with predecessor from children of this node
-    // returns the old self
-    // used during removal
-    // this is the rightmost node of the left subtree
-    // Soundness assumption: left subtree exists
-    fn replace_with_subtree_predecessor(&mut self) -> NodeRef<K, V> {
+    /// Remove self from the subtree and return a new Subtree rooted at the predecessor.
+    ///
+    /// Used during removal. The returned subtree should replace the original root in the bigger tree structure.
+    /// After the function finishes, self points to the same node, but is detached from the rest of the tree.
+    /// Returned new subtree is valid in terms of AVL.
+    /// Predecessor is the rightmost node of the left subtree.
+    /// Soundness assumption: left subtree exists
+    fn replace_with_subtree_predecessor(&mut self) -> SubtreeAnchor<K, V> {
         if self.left().is_none() {
-            panic!("Left subtree is empty when taking subtree predecessor");
+            panic!("Left subtree is empty when taking subtree successor");
         }
 
+        // Unwrap safe due to if above
         let mut left_taken = self.left_mut().take().unwrap();
 
         // If left child has no right children, it is the immediate successor - no stack needed
         if left_taken.right().is_none() {
             let saved_right = self.right_mut().take();
 
+            // Save right subtree of the removed root in the predecessor
             *left_taken.left_mut() = saved_right;
 
-            let old_noderef = std::mem::replace(self, left_taken);
+            // Restore AVL balance after modifications.
+            self.balance_subtree();
+            left_taken.balance_subtree();
 
-            self.update_height();
-
-            return old_noderef;
+            return left_taken;
         }
 
         // Left child has right subtree - descend
+        // unwrap safe due to if above
         let mut next_node = left_taken.right_mut().take().unwrap();
         let mut node_stack = Vec::from([left_taken]);
 
@@ -406,9 +406,10 @@ impl<K, V> NodeRef<K, V> {
             next_node = next_right;
         }
 
-        // Move the successor node, and save it's right subtree
-        let mut taken_successor = next_node;
-        let mut right_subtree = taken_successor.left_mut().take();
+        // Remove the predecessor from the subtree and save it's left subtree.
+        // Variable is named right_subtree, since it will be attached to predecessor's parent on the right.
+        let mut taken_predecessor = next_node;
+        let mut right_subtree = taken_predecessor.left_mut().take();
 
         // Ascend on the stack one by one fixing every node
         while let Some(mut parent_node) = node_stack.pop() {
@@ -422,13 +423,13 @@ impl<K, V> NodeRef<K, V> {
             right_subtree = Some(parent_node);
         }
 
-        // In the end, replace self with successor
-        *taken_successor.right_mut() = self.right_mut().take();
-        *taken_successor.left_mut() = right_subtree;
+        // In the end, attach self's original subtrees to the successor.
+        // "right_subtree" becomes the left subtree, since it was rebuilt from predecessor's ancestors.
+        *taken_predecessor.right_mut() = self.right_mut().take();
+        *taken_predecessor.left_mut() = right_subtree;
 
-        let old_node = std::mem::replace(self, taken_successor);
-        self.balance_subtree();
-        old_node
+        // Return the predecessor as it is a new root for the subtree
+        taken_predecessor
     }
 
     // replaces just the value of the node
@@ -439,7 +440,7 @@ impl<K, V> NodeRef<K, V> {
     }
 }
 
-impl<K: Display, V: Display> Display for NodeRef<K, V> {
+impl<K: Display, V: Display> Display for SubtreeAnchor<K, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -452,19 +453,9 @@ impl<K: Display, V: Display> Display for NodeRef<K, V> {
     }
 }
 
-// Data associated with the node
-#[derive(Debug)]
-pub struct NodeData<K, V> {
-    pub left: NullableNodeRef<K, V>,
-    pub right: NullableNodeRef<K, V>,
-    pub height: i32,
-    pub key: K,
-    pub value: V,
-}
-
 #[cfg(test)]
 mod tests {
-    use super::NodeRef;
+    use super::SubtreeAnchor;
 
     #[test]
     fn balance_factor_and_height_are_updated_correctly() {
@@ -474,10 +465,14 @@ mod tests {
         //   /
         //  2
 
-        let mut root = NodeRef::new(5, 12);
-        *root.right_mut() = Some(NodeRef::new(10, 23));
-        *root.left_mut() = Some(NodeRef::new(5, 1111));
-        *root.left_mut().as_mut().unwrap().left_mut() = Some(NodeRef::new(2, 1111));
+        let mut root = SubtreeAnchor::new_leaf(5, 12);
+        root.right_mut().replace(SubtreeAnchor::new_leaf(10, 23));
+        root.left_mut().replace(SubtreeAnchor::new_leaf(5, 1111));
+        root.left_mut()
+            .as_mut()
+            .unwrap()
+            .left_mut()
+            .replace(SubtreeAnchor::new_leaf(2, 1111));
 
         root.left_mut()
             .as_mut()
@@ -511,59 +506,61 @@ mod tests {
     fn removal_of_leaf_node() {
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Leaf nodes are left empty
         assert!(replacement_tree.is_none());
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
     fn removal_of_node_with_left_child() {
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let mut root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
         const CHILD_KEY: u32 = 2u32;
         const CHILD_VALUE: u32 = 15u32;
-        *root.left_mut() = Some(NodeRef::new(CHILD_KEY, CHILD_VALUE));
+        root.left_mut()
+            .replace(SubtreeAnchor::new_leaf(CHILD_KEY, CHILD_VALUE));
         root.update_height();
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
         assert_eq!(*replacement_tree.as_ref().unwrap().key(), CHILD_KEY);
         assert_eq!(*replacement_tree.as_ref().unwrap().value(), CHILD_VALUE);
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
     fn removal_of_node_with_right_child() {
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let mut root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
         const CHILD_KEY: u32 = 12u32;
         const CHILD_VALUE: u32 = 15u32;
-        *root.right_mut() = Some(NodeRef::new(CHILD_KEY, CHILD_VALUE));
+        root.right_mut()
+            .replace(SubtreeAnchor::new_leaf(CHILD_KEY, CHILD_VALUE));
         root.update_height();
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
         assert_eq!(*replacement_tree.as_ref().unwrap().key(), CHILD_KEY);
         assert_eq!(*replacement_tree.as_ref().unwrap().value(), CHILD_VALUE);
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
@@ -575,20 +572,25 @@ mod tests {
         //  1
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let mut root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
         const PREDECESSOR_KEY: u32 = 2u32;
         const PREDECESSOR_VALUE: u32 = 999u32;
         let left_mut = root.left_mut();
-        *left_mut = Some(NodeRef::new(PREDECESSOR_KEY, PREDECESSOR_VALUE));
+        left_mut.replace(SubtreeAnchor::new_leaf(PREDECESSOR_KEY, PREDECESSOR_VALUE));
 
-        *left_mut.as_mut().unwrap().left_mut() = Some(NodeRef::new(1u32, 89u32));
+        left_mut
+            .as_mut()
+            .unwrap()
+            .left_mut()
+            .replace(SubtreeAnchor::new_leaf(1u32, 89u32));
         left_mut.as_mut().unwrap().update_height();
 
-        *root.right_mut() = Some(NodeRef::new(12u32, 15u32));
+        root.right_mut()
+            .replace(SubtreeAnchor::new_leaf(12u32, 15u32));
         root.update_height();
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
@@ -598,8 +600,8 @@ mod tests {
             PREDECESSOR_VALUE
         );
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
@@ -611,21 +613,25 @@ mod tests {
         //      8
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let mut root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
         let left_mut = root.left_mut();
-        *left_mut = Some(NodeRef::new(2u32, 123u32));
+        left_mut.replace(SubtreeAnchor::new_leaf(2u32, 123u32));
 
         const PREDECESSOR_KEY: u32 = 8u32;
         const PREDECESSOR_VALUE: u32 = 999u32;
-        *left_mut.as_mut().unwrap().right_mut() =
-            Some(NodeRef::new(PREDECESSOR_KEY, PREDECESSOR_VALUE));
+        left_mut
+            .as_mut()
+            .unwrap()
+            .right_mut()
+            .replace(SubtreeAnchor::new_leaf(PREDECESSOR_KEY, PREDECESSOR_VALUE));
         left_mut.as_mut().unwrap().update_height();
 
-        *root.right_mut() = Some(NodeRef::new(12u32, 15u32));
+        root.right_mut()
+            .replace(SubtreeAnchor::new_leaf(12u32, 15u32));
         root.update_height();
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
@@ -635,8 +641,8 @@ mod tests {
             PREDECESSOR_VALUE
         );
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
@@ -648,28 +654,33 @@ mod tests {
         //          15
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let mut root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
         const SUCCESSOR_KEY: u32 = 12u32;
         const SUCCESSOR_VALUE: u32 = 999u32;
         let right_mut = root.right_mut();
-        *right_mut = Some(NodeRef::new(SUCCESSOR_KEY, SUCCESSOR_VALUE));
+        right_mut.replace(SubtreeAnchor::new_leaf(SUCCESSOR_KEY, SUCCESSOR_VALUE));
 
-        *right_mut.as_mut().unwrap().right_mut() = Some(NodeRef::new(15u32, 89u32));
+        right_mut
+            .as_mut()
+            .unwrap()
+            .right_mut()
+            .replace(SubtreeAnchor::new_leaf(15u32, 89u32));
         right_mut.as_mut().unwrap().update_height();
 
-        *root.left_mut() = Some(NodeRef::new(2u32, 12u32));
+        root.left_mut()
+            .replace(SubtreeAnchor::new_leaf(2u32, 12u32));
         root.update_height();
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
         assert_eq!(*replacement_tree.as_ref().unwrap().key(), SUCCESSOR_KEY);
         assert_eq!(*replacement_tree.as_ref().unwrap().value(), SUCCESSOR_VALUE);
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
@@ -681,29 +692,33 @@ mod tests {
         //      12
         const KEY: u32 = 10u32;
         const VALUE: u32 = 5u32;
-        let mut root = NodeRef::new(KEY, VALUE);
+        let mut root = SubtreeAnchor::new_leaf(KEY, VALUE);
 
         let right_mut = root.right_mut();
-        *right_mut = Some(NodeRef::new(15u32, 89u32));
+        right_mut.replace(SubtreeAnchor::new_leaf(15u32, 89u32));
 
         const SUCCESSOR_KEY: u32 = 15u32;
         const SUCCESSOR_VALUE: u32 = 999u32;
-        *right_mut.as_mut().unwrap().left_mut() =
-            Some(NodeRef::new(SUCCESSOR_KEY, SUCCESSOR_VALUE));
+        right_mut
+            .as_mut()
+            .unwrap()
+            .left_mut()
+            .replace(SubtreeAnchor::new_leaf(SUCCESSOR_KEY, SUCCESSOR_VALUE));
         right_mut.as_mut().unwrap().update_height();
 
-        *root.left_mut() = Some(NodeRef::new(2u32, 12u32));
+        root.left_mut()
+            .replace(SubtreeAnchor::new_leaf(2u32, 12u32));
         root.update_height();
 
-        let (replacement_tree, key, value) = root.remove();
+        let replacement_tree = root.remove();
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
         assert_eq!(*replacement_tree.as_ref().unwrap().key(), SUCCESSOR_KEY);
         assert_eq!(*replacement_tree.as_ref().unwrap().value(), SUCCESSOR_VALUE);
 
-        assert_eq!(key, KEY);
-        assert_eq!(value, VALUE);
+        assert_eq!(*root.key(), KEY);
+        assert_eq!(*root.value(), VALUE);
     }
 
     #[test]
@@ -714,12 +729,14 @@ mod tests {
 
         const ORIGINAL_VALUE: u32 = 999;
         const NEW_VALUE: u32 = 1337;
-        let mut root = NodeRef::new(10u32, ORIGINAL_VALUE);
+        let mut root = SubtreeAnchor::new_leaf(10u32, ORIGINAL_VALUE);
 
         const KEY_LEFT: u32 = 2u32;
         const KEY_RIGHT: u32 = 15u32;
-        *root.left_mut() = Some(NodeRef::new(KEY_LEFT, 123u32));
-        *root.right_mut() = Some(NodeRef::new(KEY_RIGHT, 122u32));
+        root.left_mut()
+            .replace(SubtreeAnchor::new_leaf(KEY_LEFT, 123u32));
+        root.right_mut()
+            .replace(SubtreeAnchor::new_leaf(KEY_RIGHT, 122u32));
         root.update_height();
 
         let result = root.replace(NEW_VALUE);
