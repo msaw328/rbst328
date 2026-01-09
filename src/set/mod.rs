@@ -14,7 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+//! Functionality related to the Set data structure based on an AVL Binary Search Tree.
+//!
+//! Main module exports the base data structure, while the `iter` module contains iterators.
+
+pub mod iter;
+use iter::*;
+
 use crate::map::BSTMap;
+
+use std::fmt;
 
 /// Ordered Set based on a self-balancing AVL Binary Search Tree.
 pub struct BSTSet<K: Ord> {
@@ -112,12 +121,43 @@ impl<K: Ord> BSTSet<K> {
     pub fn remove(&mut self, key: &K) -> bool {
         self.map.remove(key).is_some()
     }
+
+    /// Returns the default in order iterator.
+    pub fn iter(&self) -> InorderIter<'_, K> {
+        InorderIter::new(self)
+    }
 }
 
 impl<K: Ord> Default for BSTSet<K> {
     fn default() -> Self {
         Self {
             map: Default::default(),
+        }
+    }
+}
+
+impl<K: fmt::Debug + Ord> fmt::Debug for BSTSet<K> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
+    }
+}
+
+impl<K: Ord, const N: usize> From<[K; N]> for BSTSet<K> {
+    fn from(array: [K; N]) -> Self {
+        let mut set = Self::new();
+
+        for k in array {
+            set.insert(k);
+        }
+
+        set
+    }
+}
+
+impl<K: Ord> Extend<K> for BSTSet<K> {
+    fn extend<T: IntoIterator<Item = K>>(&mut self, iter: T) {
+        for k in iter {
+            self.insert(k);
         }
     }
 }

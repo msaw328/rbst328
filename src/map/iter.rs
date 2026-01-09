@@ -14,14 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+//! Iterators for the Set data structure.
+
 use std::collections::VecDeque;
 
-use crate::map::BSTMap;
+use super::BSTMap;
 use crate::node::SubtreeAnchor;
 
 // what parts of the node have been visited - nothing, left subtree, node itself, right subtree
-// used by BSTMapByrefInorderIterator to add data about visited nodes to otherwise immutable tree
-pub(crate) enum Visited {
+// used by InorderIterator to add data about visited nodes to otherwise immutable tree
+enum Visited {
     None,
     Left,
     Node,
@@ -31,11 +33,11 @@ pub(crate) enum Visited {
 /// An iterator which iterates by all the key-value pairs in order.
 ///
 /// It yields a shared reference to each key and value assigned to it.
-pub struct BSTMapByrefInorderIter<'a, K: Ord, V> {
+pub struct InorderIter<'a, K: Ord, V> {
     stack: Vec<(&'a SubtreeAnchor<K, V>, Visited)>,
 }
 
-impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
+impl<'a, K: Ord, V> InorderIter<'a, K, V> {
     pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
         let stack = match &bst.head {
             None => Vec::new(),
@@ -49,7 +51,7 @@ impl<'a, K: Ord, V> BSTMapByrefInorderIter<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> Iterator for InorderIter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -87,32 +89,32 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIter<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefInorderIter<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for InorderIter<'a, K, V> {
     fn from(value: &'a BSTMap<K, V>) -> Self {
         Self::new(value)
     }
 }
 
-// type aliases for BSTMapByrefInorderIterMut
+// type aliases for InorderIterMut
 // TODO: Replace with a proper struct maybe?
 // OptionalSubtree - owned Option with &mut to a Node<K, V> - Some if unexplored, None if empty or explored
-// OptionalKVMut - a tuple of shared reference to key type and mutable reference to value type
-// LeftKVMutRight - a tuple containing, in order: optional left subtree to be explored, KV references, right subtree to be explored
+// OptionalMut - a tuple of shared reference to key type and mutable reference to value type
+// LeftMutRight - a tuple containing, in order: optional left subtree to be explored,  references, right subtree to be explored
 type OptionalSubtree<'a, K, V> = Option<&'a mut SubtreeAnchor<K, V>>;
-type OptionalKVMut<'a, K, V> = Option<(&'a K, &'a mut V)>;
-type LeftKVMutRight<'a, K, V> = (
+type OptionalMut<'a, K, V> = Option<(&'a K, &'a mut V)>;
+type LeftMutRight<'a, K, V> = (
     OptionalSubtree<'a, K, V>,
-    OptionalKVMut<'a, K, V>,
+    OptionalMut<'a, K, V>,
     OptionalSubtree<'a, K, V>,
 );
 /// An iterator which iterates by all the key-value pairs in order, with mutability over value.
 ///
 /// It yields a shared reference to each key and a mutable reference to the value assigned to it.
-pub struct BSTMapByrefInorderIterMut<'a, K: 'a + Ord, V: 'a> {
-    pub(crate) stack: Vec<LeftKVMutRight<'a, K, V>>,
+pub struct InorderIterMut<'a, K: 'a + Ord, V: 'a> {
+    pub(crate) stack: Vec<LeftMutRight<'a, K, V>>,
 }
 
-impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> InorderIterMut<'a, K, V> {
     pub(crate) fn new(bst: &'a mut BSTMap<K, V>) -> Self {
         let bst_len = bst.len();
         let stack = match &mut bst.head {
@@ -130,7 +132,7 @@ impl<'a, K: 'a + Ord, V: 'a> BSTMapByrefInorderIterMut<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> Iterator for InorderIterMut<'a, K, V> {
     type Item = (&'a K, &'a mut V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -165,7 +167,7 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefInorderIterMut<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> From<&'a mut BSTMap<K, V>> for BSTMapByrefInorderIterMut<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> From<&'a mut BSTMap<K, V>> for InorderIterMut<'a, K, V> {
     fn from(value: &'a mut BSTMap<K, V>) -> Self {
         Self::new(value)
     }
@@ -174,11 +176,11 @@ impl<'a, K: 'a + Ord, V: 'a> From<&'a mut BSTMap<K, V>> for BSTMapByrefInorderIt
 /// An iterator which iterates by all the key-value pairs breadth-first.
 ///
 /// It yields a shared reference to each key and value assigned to it.
-pub struct BSTMapByrefBreadthfirstIter<'a, K: Ord, V> {
+pub struct BFSIter<'a, K: Ord, V> {
     pub(crate) queue: VecDeque<&'a SubtreeAnchor<K, V>>,
 }
 
-impl<'a, K: Ord, V> BSTMapByrefBreadthfirstIter<'a, K, V> {
+impl<'a, K: Ord, V> BFSIter<'a, K, V> {
     pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
         let queue = match &bst.head {
             None => VecDeque::new(),
@@ -193,7 +195,7 @@ impl<'a, K: Ord, V> BSTMapByrefBreadthfirstIter<'a, K, V> {
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefBreadthfirstIter<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> Iterator for BFSIter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -214,19 +216,20 @@ impl<'a, K: 'a + Ord, V: 'a> Iterator for BSTMapByrefBreadthfirstIter<'a, K, V> 
     }
 }
 
-impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BSTMapByrefBreadthfirstIter<'a, K, V> {
+impl<'a, K: 'a + Ord, V: 'a> From<&'a BSTMap<K, V>> for BFSIter<'a, K, V> {
     fn from(value: &'a BSTMap<K, V>) -> Self {
         Self::new(value)
     }
 }
+
 /// An iterator which consumes the BSTMap and iterates by all the key-value pairs in order.
 ///
 /// It yields a pair of key and value assigned to it directly, passing ownership to the caller.
-pub struct BSTMapConsumingInorderIter<K, V> {
+pub struct InorderIntoIter<K, V> {
     pub(crate) stack: Vec<SubtreeAnchor<K, V>>,
 }
 
-impl<K: Ord, V> BSTMapConsumingInorderIter<K, V> {
+impl<K: Ord, V> InorderIntoIter<K, V> {
     pub(crate) fn new(mut bst: BSTMap<K, V>) -> Self {
         let bst_len = bst.len();
         let stack = match bst.head.take() {
@@ -242,7 +245,7 @@ impl<K: Ord, V> BSTMapConsumingInorderIter<K, V> {
     }
 }
 
-impl<K: Ord, V> Iterator for BSTMapConsumingInorderIter<K, V> {
+impl<K: Ord, V> Iterator for InorderIntoIter<K, V> {
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -272,7 +275,122 @@ impl<K: Ord, V> Iterator for BSTMapConsumingInorderIter<K, V> {
     }
 }
 
-impl<K: Ord, V> From<BSTMap<K, V>> for BSTMapConsumingInorderIter<K, V> {
+/// An iterator which iterates by all the keys in order.
+///
+/// It yields a shared reference to each key.
+pub struct KeysIter<'a, K: Ord, V> {
+    pub(crate) inner: InorderIter<'a, K, V>,
+}
+
+impl<'a, K: Ord, V> KeysIter<'a, K, V> {
+    pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
+        Self {
+            inner: InorderIter::new(bst),
+        }
+    }
+}
+
+impl<'a, K: Ord, V> Iterator for KeysIter<'a, K, V> {
+    type Item = &'a K;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(k, _)| k)
+    }
+}
+
+/// An iterator which consumes the map and iterates by all the keys in order.
+///
+/// It yields each key (owned).
+pub struct KeysIntoIter<K: Ord, V> {
+    pub(crate) inner: InorderIntoIter<K, V>,
+}
+
+impl<K: Ord, V> KeysIntoIter<K, V> {
+    pub(crate) fn new(bst: BSTMap<K, V>) -> Self {
+        Self {
+            inner: InorderIntoIter::new(bst),
+        }
+    }
+}
+
+impl<K: Ord, V> Iterator for KeysIntoIter<K, V> {
+    type Item = K;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(k, _)| k)
+    }
+}
+
+/// An iterator which iterates by all the values in order of key.
+///
+/// It yields a shared reference to each value.
+pub struct ValuesIter<'a, K: Ord, V> {
+    pub(crate) inner: InorderIter<'a, K, V>,
+}
+
+impl<'a, K: Ord, V> ValuesIter<'a, K, V> {
+    pub(crate) fn new(bst: &'a BSTMap<K, V>) -> Self {
+        Self {
+            inner: InorderIter::new(bst),
+        }
+    }
+}
+
+impl<'a, K: Ord, V> Iterator for ValuesIter<'a, K, V> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(_, v)| v)
+    }
+}
+
+/// An iterator which iterates by all the values in order of key.
+///
+/// It yields a mutable reference to each value.
+pub struct ValuesIterMut<'a, K: Ord, V> {
+    pub(crate) inner: InorderIterMut<'a, K, V>,
+}
+
+impl<'a, K: Ord, V> ValuesIterMut<'a, K, V> {
+    pub(crate) fn new(bst: &'a mut BSTMap<K, V>) -> Self {
+        Self {
+            inner: InorderIterMut::new(bst),
+        }
+    }
+}
+
+impl<'a, K: Ord, V> Iterator for ValuesIterMut<'a, K, V> {
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(_, v)| v)
+    }
+}
+
+/// An iterator which consumes the map and iterates by all the values in order of key.
+///
+/// It yields each value (owned).
+pub struct ValuesIntoIter<K: Ord, V> {
+    pub(crate) inner: InorderIntoIter<K, V>,
+}
+
+impl<K: Ord, V> ValuesIntoIter<K, V> {
+    pub(crate) fn new(bst: BSTMap<K, V>) -> Self {
+        Self {
+            inner: InorderIntoIter::new(bst),
+        }
+    }
+}
+
+impl<K: Ord, V> Iterator for ValuesIntoIter<K, V> {
+    type Item = V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|(_, v)| v)
+    }
+}
+
+impl<K: Ord, V> From<BSTMap<K, V>> for InorderIntoIter<K, V> {
     fn from(value: BSTMap<K, V>) -> Self {
         Self::new(value)
     }
@@ -281,30 +399,30 @@ impl<K: Ord, V> From<BSTMap<K, V>> for BSTMapConsumingInorderIter<K, V> {
 impl<'a, K: Ord, V> IntoIterator for &'a BSTMap<K, V> {
     type Item = (&'a K, &'a V);
 
-    type IntoIter = BSTMapByrefInorderIter<'a, K, V>;
+    type IntoIter = InorderIter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter_inorder()
+        self.iter()
     }
 }
 
 impl<'a, K: Ord, V> IntoIterator for &'a mut BSTMap<K, V> {
     type Item = (&'a K, &'a mut V);
 
-    type IntoIter = BSTMapByrefInorderIterMut<'a, K, V>;
+    type IntoIter = InorderIterMut<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter_inorder_mut()
+        self.iter_mut()
     }
 }
 
 impl<K: Ord, V> IntoIterator for BSTMap<K, V> {
     type Item = (K, V);
 
-    type IntoIter = BSTMapConsumingInorderIter<K, V>;
+    type IntoIter = InorderIntoIter<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter_inorder()
+        InorderIntoIter::new(self)
     }
 }
 
@@ -320,32 +438,9 @@ impl<K: Ord, V> FromIterator<(K, V)> for BSTMap<K, V> {
     }
 }
 
-impl<K: Ord, V, const N: usize> From<[(K, V); N]> for BSTMap<K, V> {
-    fn from(array: [(K, V); N]) -> Self {
-        let mut bst = Self::new();
-
-        for (k, v) in array {
-            bst.insert(k, v);
-        }
-
-        bst
-    }
-}
-
-impl<K: Ord, V> Extend<(K, V)> for BSTMap<K, V> {
-    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
-        for (k, v) in iter {
-            self.insert(k, v);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::iter::{
-        BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapByrefInorderIterMut,
-        BSTMapConsumingInorderIter,
-    };
+    use super::{BFSIter, InorderIntoIter, InorderIter, InorderIterMut};
 
     use super::BSTMap;
 
@@ -358,7 +453,7 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
 
-        let mut iter = BSTMapByrefInorderIter::new(&bst);
+        let mut iter = InorderIter::new(&bst);
         let next_item = iter.next();
 
         assert!(next_item.is_none());
@@ -382,7 +477,7 @@ mod tests {
 
         bst.remove(&7); // remove non-leaf node
 
-        let collected: Vec<(&u32, &String)> = BSTMapByrefInorderIter::new(&bst).collect();
+        let collected: Vec<(&u32, &String)> = InorderIter::new(&bst).collect();
 
         const SERIES_OF_CHECKS: [(u32, &str); 4] =
             [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
@@ -414,7 +509,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        let collected: Vec<_> = BSTMapByrefInorderIter::new(&bst).map(|(k, _)| *k).collect();
+        let collected: Vec<_> = InorderIter::new(&bst).map(|(k, _)| *k).collect();
 
         assert!(collected.is_sorted());
     }
@@ -426,7 +521,7 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
 
-        let mut iter = BSTMapByrefInorderIterMut::new(&mut bst);
+        let mut iter = InorderIterMut::new(&mut bst);
         let next_item = iter.next();
 
         assert!(next_item.is_none());
@@ -452,8 +547,7 @@ mod tests {
 
         let bst_len = bst.len();
 
-        let collected: Vec<(&u32, &mut String)> =
-            BSTMapByrefInorderIterMut::new(&mut bst).collect();
+        let collected: Vec<(&u32, &mut String)> = InorderIterMut::new(&mut bst).collect();
 
         const SERIES_OF_CHECKS: [(u32, &str); 4] =
             [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
@@ -485,9 +579,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        let collected: Vec<_> = BSTMapByrefInorderIterMut::new(&mut bst)
-            .map(|(k, _)| *k)
-            .collect();
+        let collected: Vec<_> = InorderIterMut::new(&mut bst).map(|(k, _)| *k).collect();
 
         assert!(collected.is_sorted());
     }
@@ -508,7 +600,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        let iter = BSTMapByrefInorderIterMut::new(&mut bst);
+        let iter = InorderIterMut::new(&mut bst);
 
         for (_, v) in iter {
             v.insert_str(0, "AAA");
@@ -524,7 +616,7 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
 
-        let mut iter = BSTMapConsumingInorderIter::new(bst);
+        let mut iter = InorderIntoIter::new(bst);
         let next_item = iter.next();
 
         assert!(next_item.is_none());
@@ -550,7 +642,7 @@ mod tests {
 
         let saved_len = bst.len();
 
-        let collected: Vec<(u32, String)> = BSTMapConsumingInorderIter::new(bst).collect();
+        let collected: Vec<(u32, String)> = InorderIntoIter::new(bst).collect();
 
         const SERIES_OF_CHECKS: [(u32, &str); 4] =
             [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];
@@ -582,9 +674,7 @@ mod tests {
             bst.insert(*k, v.to_string());
         }
 
-        let collected: Vec<_> = BSTMapConsumingInorderIter::new(bst)
-            .map(|(k, _)| k)
-            .collect();
+        let collected: Vec<_> = InorderIntoIter::new(bst).map(|(k, _)| k).collect();
 
         assert!(collected.is_sorted());
     }
@@ -596,7 +686,7 @@ mod tests {
         assert_eq!(bst.len(), 0);
         assert!(bst.is_empty());
 
-        let mut iter = BSTMapByrefBreadthfirstIter::new(&bst);
+        let mut iter = BFSIter::new(&bst);
         let next_item = iter.next();
 
         assert!(next_item.is_none());
@@ -620,7 +710,7 @@ mod tests {
 
         bst.remove(&7); // remove non-leaf node
 
-        let collected: Vec<(&u32, &String)> = BSTMapByrefBreadthfirstIter::new(&bst).collect();
+        let collected: Vec<(&u32, &String)> = BFSIter::new(&bst).collect();
 
         const SERIES_OF_CHECKS: [(u32, &str); 4] =
             [(13, "hello"), (15, "bye"), (2, "test2"), (8, "high number")];

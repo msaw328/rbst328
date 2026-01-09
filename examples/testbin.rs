@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use rbst328::map::BSTMap;
+use rbst328::{map::BSTMap, set::BSTSet};
 
 // TODO: remove this example file once unit tests feel complete enough?
 
@@ -103,11 +103,11 @@ fn main() {
     println!("PRINTING TREE AFTER extend()");
     bst.pretty_print();
 
-    for (key, value) in bst.iter_breadthfirst() {
+    for (key, value) in bst.iter_bfs() {
         println!("Mapping BFS: {}: \"{}\"", key, value);
     }
 
-    for (_, value) in bst.iter_inorder_mut() {
+    for (_, value) in bst.iter_mut() {
         value.insert(0, 'A');
     }
 
@@ -116,5 +116,53 @@ fn main() {
 
     for (key, value) in bst {
         println!("Owned mapping: {}: \"{}\"", key, value);
+    }
+
+    bst = [
+        (-35, "Hello!"),
+        (-21, "test123"),
+        (-10, "aaaa"),
+        (-19, " "),
+        (-40, "aasdasdasd"),
+        (20, "utf8żółc"),
+    ]
+    .map(|(k, v)| (k, v.to_string()))
+    .into();
+
+    println!("{:?}", bst);
+
+    for v in bst.values_mut() {
+        print!("Old value: |{}| -> ", v);
+        v.insert(0, 'X');
+        println!("New value: |{}| ->", v);
+    }
+
+    println!("{:?}", bst);
+
+    println!("{:?}", bst.into_values().collect::<Vec<_>>());
+
+    let mut set = BSTSet::<u32>::new();
+    set.insert(59);
+    set.insert(29);
+    set.insert(1);
+    set.insert(59999);
+    set.insert(32);
+    set.insert(59999);
+    set.insert(59299);
+    set.insert(59999);
+    set.insert(1);
+
+    println!("Length: {} - {:?}", set.len(), set);
+
+    for k in set.iter() {
+        println!("SET contains: {}", k);
+    }
+
+    set.extend((0..10).map(|i| 2u32.pow(i)));
+
+    println!("Length: {} - {:?}", set.len(), set);
+
+    for k in set.into_iter() {
+        println!("SET contains: {}", k);
     }
 }

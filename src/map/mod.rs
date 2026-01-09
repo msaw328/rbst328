@@ -14,19 +14,20 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+//! Functionality related to the Map data structure based on an AVL Binary Search Tree.
+//!
+//! Main module exports the base data structure, while the `iter` module contains iterators.
+
+pub mod iter;
+use iter::*;
+
 use std::{
     cmp::{Ord, Ordering},
     collections::VecDeque,
+    fmt,
 };
 
-/// Implementation of various iterators over the BSTMap
-use crate::{
-    iter::{
-        BSTMapByrefBreadthfirstIter, BSTMapByrefInorderIter, BSTMapByrefInorderIterMut,
-        BSTMapConsumingInorderIter,
-    },
-    node::{NullableSubtreeAnchor, SubtreeAnchor},
-};
+use crate::node::{NullableSubtreeAnchor, SubtreeAnchor};
 
 /// Ordered Map based on a self-balancing AVL Binary Search Tree.
 pub struct BSTMap<K: Ord, V> {
@@ -372,38 +373,51 @@ impl<K: Ord, V> BSTMap<K, V> {
         return_value
     }
 
-    /// Returns an iterator which iterates by all the key-value pairs in order.
-    /// It yields a shared reference to each key and value assigned to it.
-    pub fn iter_inorder(&self) -> BSTMapByrefInorderIter<'_, K, V> {
-        BSTMapByrefInorderIter::new(self)
-    }
-
-    /// Returns an iterator which iterates by all the key-value pairs in order.
-    /// It yields a shared reference to each key and a mutable reference to the value assigned to it.
-    pub fn iter_inorder_mut(&mut self) -> BSTMapByrefInorderIterMut<'_, K, V> {
-        BSTMapByrefInorderIterMut::new(self)
-    }
-
-    /// Consumes the BSTMap and returns an iterator which iterates by all the key-value pairs in order.
-    /// It yields a pair of key and value assigned to it directly, passing ownership to the caller.
-    pub fn into_iter_inorder(self) -> BSTMapConsumingInorderIter<K, V> {
-        BSTMapConsumingInorderIter::new(self)
-    }
-
     /// Returns an iterator which iterates by all the key-value pairs breadth-first.
     /// It yields a shared reference to each key and value assigned to it.
-    pub fn iter_breadthfirst(&self) -> BSTMapByrefBreadthfirstIter<'_, K, V> {
-        BSTMapByrefBreadthfirstIter::new(self)
+    pub fn iter_bfs(&self) -> BFSIter<'_, K, V> {
+        BFSIter::new(self)
     }
 
-    /// Returns the default iterator.
-    pub fn iter(&self) -> BSTMapByrefInorderIter<'_, K, V> {
-        self.iter_inorder()
+    /// Returns the default in order keys iterator.
+    ///
+    /// Yields shared reference to each key.
+    pub fn keys(&self) -> KeysIter<'_, K, V> {
+        KeysIter::new(self)
     }
 
-    /// Returns the default mutable iterator.
-    pub fn iter_mut(&mut self) -> BSTMapByrefInorderIterMut<'_, K, V> {
-        self.iter_inorder_mut()
+    /// Consumes the map and returns an owned iterator over the keys.
+    ///
+    /// Yields each key in order.
+    pub fn into_keys(self) -> KeysIntoIter<K, V> {
+        KeysIntoIter::new(self)
+    }
+
+    /// Returns the default values iterator.
+    pub fn values(&self) -> ValuesIter<'_, K, V> {
+        ValuesIter::new(self)
+    }
+
+    /// Returns the default mutable values iterator.
+    pub fn values_mut(&mut self) -> ValuesIterMut<'_, K, V> {
+        ValuesIterMut::new(self)
+    }
+
+    /// Consumes the map and returns an owned iterator over the values.
+    ///
+    /// Yields each value in order of keys.
+    pub fn into_values(self) -> ValuesIntoIter<K, V> {
+        ValuesIntoIter::new(self)
+    }
+
+    /// Returns the default key-value pair iterator.
+    pub fn iter(&self) -> InorderIter<'_, K, V> {
+        InorderIter::new(self)
+    }
+
+    /// Returns the default mutable key-value pair iterator.
+    pub fn iter_mut(&mut self) -> InorderIterMut<'_, K, V> {
+        InorderIterMut::new(self)
     }
 }
 
@@ -414,10 +428,36 @@ impl<K: Ord, V> Default for BSTMap<K, V> {
     }
 }
 
+impl<K: fmt::Debug + Ord, V: fmt::Debug> fmt::Debug for BSTMap<K, V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
 /// In order to avoid recursive calls to drop provide an iterative version.
 impl<K: Ord, V> Drop for BSTMap<K, V> {
     fn drop(&mut self) {
         self.drop_all_nodes_iteratively();
+    }
+}
+
+impl<K: Ord, V, const N: usize> From<[(K, V); N]> for BSTMap<K, V> {
+    fn from(array: [(K, V); N]) -> Self {
+        let mut bst = Self::new();
+
+        for (k, v) in array {
+            bst.insert(k, v);
+        }
+
+        bst
+    }
+}
+
+impl<K: Ord, V> Extend<(K, V)> for BSTMap<K, V> {
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        for (k, v) in iter {
+            self.insert(k, v);
+        }
     }
 }
 
