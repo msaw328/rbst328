@@ -18,7 +18,7 @@ use crate::map::BSTMap;
 
 /// Ordered Set based on a self-balancing AVL Binary Search Tree.
 pub struct BSTSet<K: Ord> {
-    map: BSTMap<K, ()>
+    map: BSTMap<K, ()>,
 }
 
 impl<K: Ord> BSTSet<K> {
@@ -33,9 +33,7 @@ impl<K: Ord> BSTSet<K> {
     /// let mut set: BSTSet<u32> = BSTSet::new();
     /// ```
     pub fn new() -> Self {
-        Self {
-            map: BSTMap::new()
-        }
+        Self { map: BSTMap::new() }
     }
 
     /// Returns current length of the BSTSet (number of elements).
@@ -91,7 +89,7 @@ impl<K: Ord> BSTSet<K> {
     pub fn contains(&self, key: &K) -> bool {
         self.map.contains(key)
     }
-    
+
     /// Removes given key from the BSTSet and returns `true` if given key existed.
     /// If given key does not exist in the BSTMap, the method does nothing and returns `false`.
     ///
@@ -113,5 +111,78 @@ impl<K: Ord> BSTSet<K> {
     /// ```
     pub fn remove(&mut self, key: &K) -> bool {
         self.map.remove(key).is_some()
+    }
+}
+
+impl<K: Ord> Default for BSTSet<K> {
+    fn default() -> Self {
+        Self {
+            map: Default::default(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BSTSet;
+
+    #[test]
+    fn new_set_should_be_empty() {
+        let set: BSTSet<u32> = BSTSet::new();
+
+        assert!(set.is_empty());
+        assert_eq!(set.len(), 0);
+    }
+
+    #[test]
+    fn insertion_should_return_false_for_existing_keys() {
+        let mut set: BSTSet<u32> = BSTSet::new();
+
+        set.insert(45);
+
+        assert!(!set.insert(45));
+        assert_eq!(set.len(), 1);
+    }
+
+    #[test]
+    fn insertion_should_return_true_for_new_keys() {
+        let mut set: BSTSet<u32> = BSTSet::new();
+
+        assert!(set.insert(45));
+        assert_eq!(set.len(), 1);
+    }
+
+    #[test]
+    fn removal_should_return_true_for_existing_keys() {
+        let mut set: BSTSet<u32> = BSTSet::new();
+
+        set.insert(45);
+
+        assert!(set.remove(&45));
+        assert_eq!(set.len(), 0);
+    }
+
+    #[test]
+    fn removal_should_return_false_for_nonexistent_keys() {
+        let mut set: BSTSet<u32> = BSTSet::new();
+
+        assert!(!set.remove(&45));
+        assert_eq!(set.len(), 0);
+    }
+
+    #[test]
+    fn contains_should_return_false_for_nonexistent_keys() {
+        let set: BSTSet<u32> = BSTSet::new();
+
+        assert!(!set.contains(&45));
+    }
+
+    #[test]
+    fn contains_should_return_true_for_existing_keys() {
+        let mut set: BSTSet<u32> = BSTSet::new();
+
+        set.insert(45);
+
+        assert!(set.contains(&45));
     }
 }
