@@ -173,7 +173,7 @@ mod tests {
         assert_eq!(collected.len(), bst_len);
 
         for k in &SERIES_OF_CHECKS {
-            assert!(collected.iter().any(|k_iter| *k == *k_iter));
+            assert!(collected.contains(k));
         }
     }
 
