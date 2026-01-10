@@ -225,4 +225,16 @@ mod tests {
 
         assert!(set.contains(&45));
     }
+
+    #[test]
+    fn clear_sets_length_to_zero() {
+        let mut set = BSTSet::<u32>::new();
+
+        const KEY: u32 = 1;
+        set.insert(KEY);
+        set.clear();
+
+        assert_eq!(set.len(), 0);
+        assert!(set.is_empty());
+    }
 }

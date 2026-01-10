@@ -173,6 +173,11 @@ impl<K, V> SubtreeAnchor<K, V> {
         }
     }
 
+    /// Returns AVL height of the subtree
+    fn height(&self) -> i32 {
+        self.0.height
+    }
+
     /// Returns AVL balance factor for the root of the subtree.
     pub fn balance(&self) -> i32 {
         self.right_height() - self.left_height()
@@ -189,11 +194,9 @@ impl<K, V> SubtreeAnchor<K, V> {
     fn rotate_right(&mut self) {
         let left_child_ref = self.left_mut();
 
-        if left_child_ref.is_none() {
-            panic!("AVL right rotation attempted on a Node with no left child!");
-        }
-
-        let mut left_child = left_child_ref.take().unwrap();
+        let mut left_child = left_child_ref
+            .take()
+            .expect("AVL right rotation attempted on a Node with no left child!");
         let right_child_of_left_child = left_child.right_mut().take();
 
         // Assume: Tree was had valid AVL heights before
@@ -215,11 +218,9 @@ impl<K, V> SubtreeAnchor<K, V> {
     fn rotate_left(&mut self) {
         let right_child_ref = self.right_mut();
 
-        if right_child_ref.is_none() {
-            panic!("AVL left rotation attempted on a Node with no right child!");
-        }
-
-        let mut right_child = right_child_ref.take().unwrap();
+        let mut right_child = right_child_ref
+            .take()
+            .expect("AVL left rotation attempted on a Node with no right child!");
         let left_child_of_right_child = right_child.left_mut().take();
 
         // Assume: Tree was had valid AVL heights before
@@ -260,9 +261,6 @@ impl<K, V> SubtreeAnchor<K, V> {
             if left_child.balance() > 0 {
                 // The left child has to have a right child
                 // (because it has to have ANY child, and it is not left-heavy)
-                if left_child.right().is_none() {
-                    panic!("Right-heavy left-child has no right child - THIS SHOULD NEVER HAPPEN");
-                }
 
                 // Case Left-Right
                 left_child.rotate_left();
@@ -282,9 +280,6 @@ impl<K, V> SubtreeAnchor<K, V> {
             if right_child.balance() < 0 {
                 // The right child has to have a left child
                 // (because it has to have ANY child, and it is not right-heavy)
-                if right_child.left().is_none() {
-                    panic!("Left-heavy right-child has no left child - THIS SHOULD NEVER HAPPEN");
-                }
 
                 // Case Left-Right
                 right_child.rotate_right();
@@ -304,12 +299,11 @@ impl<K, V> SubtreeAnchor<K, V> {
     /// Successor is the leftmost node of the right subtree.
     /// Soundness assumption: right subtree exists
     fn replace_with_subtree_successor(&mut self) -> SubtreeAnchor<K, V> {
-        if self.right().is_none() {
-            panic!("Right subtree is empty when taking subtree successor");
-        }
-
         // Unwrap safe due to if above
-        let mut right_taken = self.right_mut().take().unwrap();
+        let mut right_taken = self
+            .right_mut()
+            .take()
+            .expect("Right subtree is empty when taking subtree successor");
 
         // If right child has no left children, it is the immediate successor - no stack needed
         if right_taken.left().is_none() {
@@ -328,12 +322,12 @@ impl<K, V> SubtreeAnchor<K, V> {
         // Right child has left subtree - descend
         // unwrap safe due to if above
         let mut next_node = right_taken.left_mut().take().unwrap();
-        let mut node_stack = Vec::from([right_taken]);
+        let mut node_stack = Vec::with_capacity(right_taken.height() as usize);
+        node_stack.push(right_taken);
 
         // Next node points at the next NullableNodeRef, but we're guaranteed that it is Some
         // As long as that Node has a left child, we descend one level further
-        while next_node.left().is_some() {
-            let next_left = next_node.left_mut().take().unwrap();
+        while let Some(next_left) = next_node.left_mut().take() {
             node_stack.push(next_node);
             next_node = next_left;
         }
@@ -359,6 +353,7 @@ impl<K, V> SubtreeAnchor<K, V> {
         // "left_subtree" becomes the right subtree, since it was rebuilt from successors ancestors.
         *taken_successor.left_mut() = self.left_mut().take();
         *taken_successor.right_mut() = left_subtree;
+        taken_successor.balance_subtree();
 
         // Return the successor, as it is a new root for the subtree
         taken_successor
@@ -372,12 +367,11 @@ impl<K, V> SubtreeAnchor<K, V> {
     /// Predecessor is the rightmost node of the left subtree.
     /// Soundness assumption: left subtree exists
     fn replace_with_subtree_predecessor(&mut self) -> SubtreeAnchor<K, V> {
-        if self.left().is_none() {
-            panic!("Left subtree is empty when taking subtree successor");
-        }
-
         // Unwrap safe due to if above
-        let mut left_taken = self.left_mut().take().unwrap();
+        let mut left_taken = self
+            .left_mut()
+            .take()
+            .expect("Left subtree is empty when taking subtree successor");
 
         // If left child has no right children, it is the immediate successor - no stack needed
         if left_taken.right().is_none() {
@@ -396,12 +390,12 @@ impl<K, V> SubtreeAnchor<K, V> {
         // Left child has right subtree - descend
         // unwrap safe due to if above
         let mut next_node = left_taken.right_mut().take().unwrap();
-        let mut node_stack = Vec::from([left_taken]);
+        let mut node_stack = Vec::with_capacity(left_taken.height() as usize);
+        node_stack.push(left_taken);
 
         // Next node points at the next NullableNodeRef, but we're guaranteed that it is Some
         // As long as that Node has a right child, we descend one level further
-        while next_node.right().is_some() {
-            let next_right = next_node.right_mut().take().unwrap();
+        while let Some(next_right) = next_node.right_mut().take() {
             node_stack.push(next_node);
             next_node = next_right;
         }
@@ -427,6 +421,7 @@ impl<K, V> SubtreeAnchor<K, V> {
         // "right_subtree" becomes the left subtree, since it was rebuilt from predecessor's ancestors.
         *taken_predecessor.right_mut() = self.right_mut().take();
         *taken_predecessor.left_mut() = right_subtree;
+        taken_predecessor.balance_subtree();
 
         // Return the predecessor as it is a new root for the subtree
         taken_predecessor
@@ -455,7 +450,37 @@ impl<K: Display, V: Display> Display for SubtreeAnchor<K, V> {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Display;
+
     use super::SubtreeAnchor;
+
+    fn helper_is_subtree_balanced_recursive<K: Display, V>(tree: &SubtreeAnchor<K, V>) -> bool {
+        let left_balance = if let Some(inner) = tree.left().as_ref() {
+            println!("GOING LEFT");
+            helper_is_subtree_balanced_recursive(inner)
+        } else {
+            true
+        };
+
+        let right_balance = if let Some(inner) = tree.right().as_ref() {
+            println!("GOING RIGHT");
+            helper_is_subtree_balanced_recursive(inner)
+        } else {
+            true
+        };
+
+        println!(
+            "K: {} H: {} B: {} L: {} R: {}",
+            *tree.key(),
+            tree.height(),
+            tree.balance(),
+            left_balance,
+            right_balance
+        );
+
+        println!("GOING UP");
+        tree.balance().abs() < 2 && left_balance && right_balance
+    }
 
     #[test]
     fn balance_factor_and_height_are_updated_correctly() {
@@ -533,8 +558,12 @@ mod tests {
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
-        assert_eq!(*replacement_tree.as_ref().unwrap().key(), CHILD_KEY);
-        assert_eq!(*replacement_tree.as_ref().unwrap().value(), CHILD_VALUE);
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), CHILD_KEY);
+        assert_eq!(*replacement_tree.value(), CHILD_VALUE);
 
         assert_eq!(*root.key(), KEY);
         assert_eq!(*root.value(), VALUE);
@@ -556,8 +585,12 @@ mod tests {
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
-        assert_eq!(*replacement_tree.as_ref().unwrap().key(), CHILD_KEY);
-        assert_eq!(*replacement_tree.as_ref().unwrap().value(), CHILD_VALUE);
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), CHILD_KEY);
+        assert_eq!(*replacement_tree.value(), CHILD_VALUE);
 
         assert_eq!(*root.key(), KEY);
         assert_eq!(*root.value(), VALUE);
@@ -594,11 +627,12 @@ mod tests {
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
-        assert_eq!(*replacement_tree.as_ref().unwrap().key(), PREDECESSOR_KEY);
-        assert_eq!(
-            *replacement_tree.as_ref().unwrap().value(),
-            PREDECESSOR_VALUE
-        );
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), PREDECESSOR_KEY);
+        assert_eq!(*replacement_tree.value(), PREDECESSOR_VALUE);
 
         assert_eq!(*root.key(), KEY);
         assert_eq!(*root.value(), VALUE);
@@ -635,11 +669,12 @@ mod tests {
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
-        assert_eq!(*replacement_tree.as_ref().unwrap().key(), PREDECESSOR_KEY);
-        assert_eq!(
-            *replacement_tree.as_ref().unwrap().value(),
-            PREDECESSOR_VALUE
-        );
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), PREDECESSOR_KEY);
+        assert_eq!(*replacement_tree.value(), PREDECESSOR_VALUE);
 
         assert_eq!(*root.key(), KEY);
         assert_eq!(*root.value(), VALUE);
@@ -676,8 +711,12 @@ mod tests {
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
-        assert_eq!(*replacement_tree.as_ref().unwrap().key(), SUCCESSOR_KEY);
-        assert_eq!(*replacement_tree.as_ref().unwrap().value(), SUCCESSOR_VALUE);
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), SUCCESSOR_KEY);
+        assert_eq!(*replacement_tree.value(), SUCCESSOR_VALUE);
 
         assert_eq!(*root.key(), KEY);
         assert_eq!(*root.value(), VALUE);
@@ -714,8 +753,12 @@ mod tests {
 
         // Nodes with 1 child are replaced with it
         assert!(replacement_tree.is_some());
-        assert_eq!(*replacement_tree.as_ref().unwrap().key(), SUCCESSOR_KEY);
-        assert_eq!(*replacement_tree.as_ref().unwrap().value(), SUCCESSOR_VALUE);
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), SUCCESSOR_KEY);
+        assert_eq!(*replacement_tree.value(), SUCCESSOR_VALUE);
 
         assert_eq!(*root.key(), KEY);
         assert_eq!(*root.value(), VALUE);
@@ -747,5 +790,200 @@ mod tests {
         assert!(root.right().is_some());
         assert_eq!(*root.left().as_ref().unwrap().key(), KEY_LEFT);
         assert_eq!(*root.right().as_ref().unwrap().key(), KEY_RIGHT);
+    }
+
+    #[test]
+    fn removal_of_node_with_deeper_successor() {
+        //      10
+        //     /  \
+        //    2   15
+        //   /   /  \
+        //  1   13  20
+        //     /  \
+        //    12  14
+
+        const ORIGINAL_KEY: u32 = 10;
+        const ORIGINAL_VALUE: u32 = 999;
+        const SUCCESSOR_KEY: u32 = 12;
+        const SUCCESSOR_VALUE: u32 = 1337;
+        let successor = SubtreeAnchor::new_leaf(SUCCESSOR_KEY, SUCCESSOR_VALUE);
+        let node_14 = SubtreeAnchor::new_leaf(14, 90);
+
+        let mut node_13 = SubtreeAnchor::new_leaf(13u32, 4643);
+        node_13.left_mut().replace(successor);
+        node_13.right_mut().replace(node_14);
+        node_13.update_height();
+
+        let node_20 = SubtreeAnchor::new_leaf(20, 781);
+
+        let mut node_15 = SubtreeAnchor::new_leaf(15u32, 12);
+        node_15.left_mut().replace(node_13);
+        node_15.right_mut().replace(node_20);
+        node_15.update_height();
+
+        let node_1 = SubtreeAnchor::new_leaf(1, 11111);
+
+        let mut node_2 = SubtreeAnchor::new_leaf(2, 222);
+        node_2.left_mut().replace(node_1);
+        node_2.update_height();
+
+        let mut root = SubtreeAnchor::new_leaf(ORIGINAL_KEY, ORIGINAL_VALUE);
+        root.left_mut().replace(node_2);
+        root.right_mut().replace(node_15);
+        root.update_height();
+
+        let replacement_tree = root.remove();
+
+        assert!(replacement_tree.is_some());
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), SUCCESSOR_KEY);
+        assert_eq!(*replacement_tree.value(), SUCCESSOR_VALUE);
+
+        assert_eq!(*root.key(), ORIGINAL_KEY);
+        assert_eq!(*root.value(), ORIGINAL_VALUE);
+    }
+
+    #[test]
+    fn removal_of_node_with_deeper_predecessor() {
+        //      10
+        //     /  \
+        //    2   15
+        //   / \    \
+        //  1   7   20
+        //     / \
+        //    5   9
+
+        const ORIGINAL_KEY: u32 = 10;
+        const ORIGINAL_VALUE: u32 = 999;
+        const PREDECESSOR_KEY: u32 = 9;
+        const PREDECESSOR_VALUE: u32 = 1337;
+        let predecessor = SubtreeAnchor::new_leaf(PREDECESSOR_KEY, PREDECESSOR_VALUE);
+        let node_5 = SubtreeAnchor::new_leaf(5, 90);
+
+        let mut node_7 = SubtreeAnchor::new_leaf(7u32, 4643);
+        node_7.left_mut().replace(node_5);
+        node_7.right_mut().replace(predecessor);
+        node_7.update_height();
+
+        let node_1 = SubtreeAnchor::new_leaf(1, 781);
+
+        let mut node_2 = SubtreeAnchor::new_leaf(2u32, 12);
+        node_2.left_mut().replace(node_1);
+        node_2.right_mut().replace(node_7);
+        node_2.update_height();
+
+        let node_20 = SubtreeAnchor::new_leaf(20, 11111);
+
+        let mut node_15 = SubtreeAnchor::new_leaf(15, 222);
+        node_15.right_mut().replace(node_20);
+        node_15.update_height();
+
+        let mut root = SubtreeAnchor::new_leaf(ORIGINAL_KEY, ORIGINAL_VALUE);
+        root.left_mut().replace(node_2);
+        root.right_mut().replace(node_15);
+        root.update_height();
+
+        let replacement_tree = root.remove();
+
+        assert!(replacement_tree.is_some());
+
+        let replacement_tree = replacement_tree.as_ref().unwrap();
+
+        assert!(helper_is_subtree_balanced_recursive(replacement_tree));
+        assert_eq!(*replacement_tree.key(), PREDECESSOR_KEY);
+        assert_eq!(*replacement_tree.value(), PREDECESSOR_VALUE);
+
+        assert_eq!(*root.key(), ORIGINAL_KEY);
+        assert_eq!(*root.value(), ORIGINAL_VALUE);
+    }
+
+    #[test]
+    fn direct_rebalance_in_a_right_left_heavy_case() {
+        //      10
+        //     /  \
+        //    2   15
+        //       /  \
+        //      13  20
+        //     /  \
+        //    12  14
+
+        const ORIGINAL_KEY: u32 = 10;
+        const ORIGINAL_VALUE: u32 = 999;
+        const NEW_KEY: u32 = 13;
+        const NEW_VALUE: u32 = 1337;
+        let node_12 = SubtreeAnchor::new_leaf(12, 188);
+        let node_14 = SubtreeAnchor::new_leaf(14, 90);
+
+        let mut node_13 = SubtreeAnchor::new_leaf(NEW_KEY, NEW_VALUE);
+        node_13.left_mut().replace(node_12);
+        node_13.right_mut().replace(node_14);
+        node_13.update_height();
+
+        let node_20 = SubtreeAnchor::new_leaf(20, 781);
+
+        let mut node_15 = SubtreeAnchor::new_leaf(15, 11);
+        node_15.left_mut().replace(node_13);
+        node_15.right_mut().replace(node_20);
+        node_15.update_height();
+
+        let node_2 = SubtreeAnchor::new_leaf(2, 222);
+
+        let mut root = SubtreeAnchor::new_leaf(ORIGINAL_KEY, ORIGINAL_VALUE);
+        root.left_mut().replace(node_2);
+        root.right_mut().replace(node_15);
+        root.update_height();
+
+        root.balance_subtree();
+
+        assert!(helper_is_subtree_balanced_recursive(&root));
+        assert_eq!(*root.key(), NEW_KEY);
+        assert_eq!(*root.value(), NEW_VALUE);
+    }
+
+    #[test]
+    fn direct_rebalance_in_a_left_right_heavy_case() {
+        //      10
+        //     /  \
+        //    2   15
+        //   / \
+        //  1   7
+        //     / \
+        //    5   9
+
+        const ORIGINAL_KEY: u32 = 10;
+        const ORIGINAL_VALUE: u32 = 999;
+        const NEW_KEY: u32 = 7;
+        const NEW_VALUE: u32 = 1337;
+        let node_9 = SubtreeAnchor::new_leaf(9, 132);
+        let node_5 = SubtreeAnchor::new_leaf(5, 90);
+
+        let mut node_7 = SubtreeAnchor::new_leaf(NEW_KEY, NEW_VALUE);
+        node_7.left_mut().replace(node_5);
+        node_7.right_mut().replace(node_9);
+        node_7.update_height();
+
+        let node_1 = SubtreeAnchor::new_leaf(1, 781);
+
+        let mut node_2 = SubtreeAnchor::new_leaf(2u32, 12);
+        node_2.left_mut().replace(node_1);
+        node_2.right_mut().replace(node_7);
+        node_2.update_height();
+
+        let node_15 = SubtreeAnchor::new_leaf(15, 222);
+
+        let mut root = SubtreeAnchor::new_leaf(ORIGINAL_KEY, ORIGINAL_VALUE);
+        root.left_mut().replace(node_2);
+        root.right_mut().replace(node_15);
+        root.update_height();
+
+        root.balance_subtree();
+
+        assert!(helper_is_subtree_balanced_recursive(&root));
+
+        assert_eq!(*root.key(), NEW_KEY);
+        assert_eq!(*root.value(), NEW_VALUE);
     }
 }

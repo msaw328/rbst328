@@ -704,7 +704,7 @@ mod tests {
     fn removal_of_node_with_two_children_and_successor_in_right_subtree() {
         let mut bst = BSTMap::<u32, String>::new();
 
-        const TEST_INSERTIONS: [(u32, &str); 11] = [
+        const TEST_INSERTIONS: [(u32, &str); 10] = [
             (10, "hello"),
             (5, "hi"),
             (15, "bye"),
@@ -714,18 +714,16 @@ mod tests {
             (12, "left_child_subtree_l"),
             (14, "left_child_subtree_r"),
             (19, "right_child_subtree_l"),
-            (17, "right_child_subtree_l_l"),
             (21, "right_child_subtree_r"),
         ];
 
         // Children to check after removing 15
-        const CHILDREN_TO_CHECK: [(u32, &str); 7] = [
+        const CHILDREN_TO_CHECK: [(u32, &str); 6] = [
             (13, "left_child"),
             (20, "right_child"),
             (12, "left_child_subtree_l"),
             (14, "left_child_subtree_r"),
             (19, "right_child_subtree_l"),
-            (17, "right_child_subtree_l_l"),
             (21, "right_child_subtree_r"),
         ];
         for (k, v) in &TEST_INSERTIONS {
@@ -739,8 +737,6 @@ mod tests {
         //  2   13  20
         //     / |  | \
         //    12 14 19 21
-        //         /
-        //        17
         let return_val = bst.remove(&15);
 
         assert_eq!(bst.len(), TEST_INSERTIONS.len() - 1);

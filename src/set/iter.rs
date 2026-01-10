@@ -84,3 +84,111 @@ impl<K: Ord> IntoIterator for BSTSet<K> {
         InorderIntoIter::new(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{BSTSet, InorderIntoIter, InorderIter};
+
+    #[test]
+    fn byref_inorder_iter_is_empty_from_empty_map() {
+        let bst = BSTSet::<u32>::new();
+
+        assert_eq!(bst.len(), 0);
+        assert!(bst.is_empty());
+
+        let mut iter = InorderIter::new(&bst);
+        let next_item = iter.next();
+
+        assert!(next_item.is_none());
+    }
+
+    #[test]
+    fn byref_inorder_iter_contains_all_items() {
+        let mut bst = BSTSet::<u32>::new();
+
+        const SERIES_OF_INSERTIONS: [u32; 5] = [13, 15, 7, 2, 8];
+
+        for k in &SERIES_OF_INSERTIONS {
+            bst.insert(*k);
+        }
+
+        bst.remove(&7); // remove non-leaf node
+
+        let collected: Vec<&u32> = InorderIter::new(&bst).collect();
+
+        const SERIES_OF_CHECKS: [u32; 4] = [13, 15, 2, 8];
+
+        assert_eq!(collected.len(), bst.len());
+
+        for k in &SERIES_OF_CHECKS {
+            assert!(collected.iter().any(|k_iter| *k == **k_iter));
+        }
+    }
+
+    #[test]
+    fn byref_inorder_iter_is_sorted_by_key() {
+        let mut bst = BSTSet::<u32>::new();
+
+        const SERIES_OF_INSERTIONS: [u32; 5] = [13, 15, 7, 2, 8];
+
+        for k in &SERIES_OF_INSERTIONS {
+            bst.insert(*k);
+        }
+
+        let collected: Vec<_> = InorderIter::new(&bst).collect();
+
+        assert!(collected.is_sorted());
+    }
+
+    #[test]
+    fn consuming_inorder_iter_is_empty_from_empty_map() {
+        let bst = BSTSet::<u32>::new();
+
+        assert_eq!(bst.len(), 0);
+        assert!(bst.is_empty());
+
+        let mut iter = InorderIntoIter::new(bst);
+        let next_item = iter.next();
+
+        assert!(next_item.is_none());
+    }
+
+    #[test]
+    fn consuming_inorder_iter_contains_all_items() {
+        let mut bst = BSTSet::<u32>::new();
+
+        const SERIES_OF_INSERTIONS: [u32; 5] = [13, 15, 7, 2, 8];
+
+        for k in &SERIES_OF_INSERTIONS {
+            bst.insert(*k);
+        }
+
+        bst.remove(&7); // remove non-leaf node
+
+        let bst_len = bst.len();
+        let collected: Vec<u32> = InorderIntoIter::new(bst).collect();
+
+        const SERIES_OF_CHECKS: [u32; 4] = [13, 15, 2, 8];
+
+        assert_eq!(collected.len(), bst_len);
+
+        for k in &SERIES_OF_CHECKS {
+            assert!(collected.iter().any(|k_iter| *k == *k_iter));
+        }
+    }
+
+    #[test]
+    fn consuming_inorder_iter_is_sorted_by_key() {
+        let mut bst = BSTSet::<u32>::new();
+
+        const SERIES_OF_INSERTIONS: [u32; 5] = [13, 15, 7, 2, 8];
+
+        for k in &SERIES_OF_INSERTIONS {
+            bst.insert(*k);
+        }
+
+        let collected: Vec<_> = InorderIntoIter::new(bst).collect();
+
+        assert!(collected.is_sorted());
+    }
+}
