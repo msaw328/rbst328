@@ -93,3 +93,38 @@ where
         deserializer.deserialize_seq(BSTSetVisitor::new())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_test::{Token, assert_tokens};
+
+    use crate::set::BSTSet;
+
+    #[test]
+    fn empty_set_to_tokens() {
+        let set: BSTSet<i32> = BSTSet::new();
+
+        assert_tokens(&set, &[Token::Seq { len: Some(0) }, Token::SeqEnd]);
+    }
+
+    #[test]
+    fn nonempty_set_to_tokens() {
+        let mut set: BSTSet<i32> = BSTSet::new();
+        set.insert(32);
+        set.insert(89);
+        set.insert(23);
+
+        // Sorted order!
+        assert_tokens(&set, &[
+            Token::Seq { len: Some(3) },
+
+            Token::I32(23),
+   
+            Token::I32(32),
+
+            Token::I32(89),
+
+            Token::SeqEnd
+        ]);
+    }
+}
