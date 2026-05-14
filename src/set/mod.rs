@@ -21,6 +21,9 @@
 pub mod iter;
 use iter::*;
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
 use crate::map::BSTMap;
 
 use std::fmt;
