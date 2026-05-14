@@ -15,7 +15,11 @@ exclude = ["examples/", ".github"]
 publish = false
 
 [dev-dependencies]
+# TODO: serde_json is only needed for examples
+# If exampels are moved into separate bin targets,
+# then serde_json could stop polluting dependencies of the global lib
 serde_json = "1.0.149"
+serde_test = "1.0.177"
 
 [dependencies]
 serde_core = { version = "1.0.228", optional = true }

@@ -464,6 +464,15 @@ impl<K: Ord, V> Extend<(K, V)> for BSTMap<K, V> {
     }
 }
 
+impl<K: Ord + PartialEq, V: PartialEq> PartialEq for BSTMap<K, V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.len() == other.len()
+            && self
+                .iter()
+                .all(|(k, v)| other.contains(k) && other.get(k).unwrap() == v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::BSTMap;

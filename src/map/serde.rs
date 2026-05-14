@@ -114,3 +114,41 @@ where
         deserializer.deserialize_map(BSTMapVisitor::new())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_test::{Token, assert_tokens};
+
+    use crate::map::BSTMap;
+
+    #[test]
+    fn empty_map_to_tokens() {
+        let map: BSTMap<i32, u32> = BSTMap::new();
+
+        assert_tokens(&map, &[Token::Map { len: Some(0) }, Token::MapEnd]);
+    }
+
+    #[test]
+    fn nonempty_map_to_tokens() {
+        let mut map: BSTMap<i32, &str> = BSTMap::new();
+        map.insert(32, "test");
+        map.insert(89, "test1");
+        map.insert(23, "test2");
+
+        // Sorted order!
+        assert_tokens(&map, &[
+            Token::Map { len: Some(3) },
+
+            Token::I32(23),
+            Token::BorrowedStr("test2"),
+   
+            Token::I32(32),
+            Token::BorrowedStr("test"),
+
+            Token::I32(89),
+            Token::BorrowedStr("test1"),
+
+            Token::MapEnd
+        ]);
+    }
+}
