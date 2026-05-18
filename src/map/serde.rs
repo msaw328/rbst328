@@ -138,19 +138,18 @@ mod tests {
         map.insert(23, "test2");
 
         // Sorted order!
-        assert_tokens(&map, &[
-            Token::Map { len: Some(3) },
-
-            Token::I32(23),
-            Token::BorrowedStr("test2"),
-   
-            Token::I32(32),
-            Token::BorrowedStr("test"),
-
-            Token::I32(89),
-            Token::BorrowedStr("test1"),
-
-            Token::MapEnd
-        ]);
+        assert_tokens(
+            &map,
+            &[
+                Token::Map { len: Some(3) },
+                Token::I32(23),
+                Token::BorrowedStr("test2"),
+                Token::I32(32),
+                Token::BorrowedStr("test"),
+                Token::I32(89),
+                Token::BorrowedStr("test1"),
+                Token::MapEnd,
+            ],
+        );
     }
 }

@@ -117,16 +117,15 @@ mod tests {
         set.insert(23);
 
         // Sorted order!
-        assert_tokens(&set, &[
-            Token::Seq { len: Some(3) },
-
-            Token::I32(23),
-   
-            Token::I32(32),
-
-            Token::I32(89),
-
-            Token::SeqEnd
-        ]);
+        assert_tokens(
+            &set,
+            &[
+                Token::Seq { len: Some(3) },
+                Token::I32(23),
+                Token::I32(32),
+                Token::I32(89),
+                Token::SeqEnd,
+            ],
+        );
     }
 }
