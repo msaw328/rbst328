@@ -167,10 +167,7 @@ impl<K: Ord> Extend<K> for BSTSet<K> {
 
 impl<K: Ord + PartialEq> PartialEq for BSTSet<K> {
     fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len()
-            && self
-                .iter()
-                .all(|k| other.contains(k))
+        self.len() == other.len() && self.iter().all(|k| other.contains(k))
     }
 }
 
