@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+//! Implementation for `serde` traits for the `BSTMap` type. Available only with the `serde` feature flag
+
 // Code here has been copied from:
 // https://serde.rs/deserialize-map.html
 // https://serde.rs/impl-serialize.html#serializing-a-sequence-or-map

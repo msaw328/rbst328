@@ -14,6 +14,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+/*!
+This crate implements `Map` and `Set` collection types based on an AVL Binary Search Tree.
+At the moment the core library uses 100% safe code,
+but future unsafe code might be introduced for performance reasons.
+
+# Dependencies and feature flags
+Without feature flags enabled, library has no dependencies.
+Using the feature flag `serde` enables implementations for
+`Serialize` and `Deserialize` on `BSTMap` and `BSTSet` but introduces
+dependency on `serde-core`.
+*/
+
 mod debug;
 pub mod map;
 mod node;
