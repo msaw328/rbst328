@@ -25,7 +25,7 @@ pub fn main() -> Result<()> {
 
     let json = serde_json::to_string(&set)?;
 
-    println!("Serialized Map JSON: {}", json);
+    println!("Serialized Set JSON: {}", json);
 
     let mut map = BSTMap::new();
     map.insert(123, "test");
@@ -35,7 +35,7 @@ pub fn main() -> Result<()> {
 
     let json = serde_json::to_string(&map)?;
 
-    println!("Serialized Set JSON: {}", json);
+    println!("Serialized Map JSON: {}", json);
 
     Ok(())
 }
