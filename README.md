@@ -21,7 +21,8 @@ The plan is as follows:
 2) Implement Self-balancing using the AVL method:
     - :white_check_mark: Insertion
     - :white_check_mark: Removal
-3) Add serialization and deserialization from/to bytes
+3) Add serialization and deserialization from/to bytes:
+    - :white_check_mark: Serde traits implemented for `BSTMap` and `BSTSet` (implementation gated with `serde` feature flag)
 4) Try sending it over a network, writing to a file or some other way of IPC/data sync
     - Perhaps a simple Redis-style key-value store with persistence to disk?
 5) Optionally: make the code pretty :)
